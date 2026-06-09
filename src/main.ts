@@ -1,114 +1,148 @@
-import {
-	Editor,
-	MarkdownView,
-	MarkdownFileInfo,
-	Modal,
-	Notice,
-	Plugin,
-} from 'obsidian';
-import {
-	DEFAULT_SETTINGS,
-	MyPluginSettings,
-	SampleSettingTab,
-} from './settings';
-
-// Remember to rename these classes and interfaces!
+import { Plugin, WorkspaceLeaf, Notice } from 'obsidian';
+import { QuickChatView, VIEW_TYPE_QUICK_CHAT, CreateCharacterModal } from './chat-view';
+import { MyPluginSettings, DEFAULT_SETTINGS, SampleSettingTab } from './settings';
 
 export default class MyPlugin extends Plugin {
 	settings!: MyPluginSettings;
+	apiModelStatus: { [keyIndex: number]: { [modelName: string]: 'AVAILABLE' | 'EXHAUSTED' } } = {};
+	activeSettingTab: any = null;
 
-	async onload() {
-		await this.loadSettings();
-
-		// This creates an icon in the left ribbon.
-		this.addRibbonIcon('dice', 'Sample', (_evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
-
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status bar text');
-
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-modal-simple',
-			name: 'Open modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			},
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'replace-selected',
-			name: 'Replace selected content',
-			editorCallback: (
-				editor: Editor,
-				_ctx: MarkdownView | MarkdownFileInfo,
-			) => {
-				editor.replaceSelection('Sample editor command');
-			},
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-modal-complex',
-			name: 'Open modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView =
-					this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-				return false;
-			},
-		});
-
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(activeDocument, 'click', (_evt: MouseEvent) => {
-			new Notice('Click');
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(
-			window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000),
-		);
+	resetApiModelStatus() {
+		const goodModels = ['gemini-3.5-flash', 'gemini-3-flash', 'gemini-2.5-flash'];
+		const badModels = ['gemma-4-31b-it', 'gemma-4-26b-a4b-it'];
+		const allModels = [...goodModels, ...badModels];
+		this.apiModelStatus = {};
+		for (let i = 0; i < 5; i++) {
+			const statusMap: { [modelName: string]: 'AVAILABLE' | 'EXHAUSTED' } = {};
+			for (const model of allModels) {
+				statusMap[model] = 'AVAILABLE';
+			}
+			this.apiModelStatus[i] = statusMap;
+		}
 	}
 
-	onunload() {}
+	setApiModelStatus(keyIndex: number, model: string, status: 'AVAILABLE' | 'EXHAUSTED') {
+		if (!this.apiModelStatus[keyIndex]) {
+			this.apiModelStatus[keyIndex] = {};
+		}
+		const oldStatus = this.apiModelStatus[keyIndex][model];
+		this.apiModelStatus[keyIndex][model] = status;
+		if (oldStatus !== status) {
+			this.triggerStatusUpdate();
+		}
+	}
+
+	triggerStatusUpdate() {
+		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_QUICK_CHAT);
+		for (const leaf of leaves) {
+			if (leaf.view instanceof QuickChatView) {
+				leaf.view.updateApiStatusDisplay();
+			}
+		}
+		if (this.activeSettingTab && this.activeSettingTab.containerEl && document.body.contains(this.activeSettingTab.containerEl)) {
+			this.activeSettingTab.display();
+		}
+	}
+
+	async onload() {
+		this.resetApiModelStatus();
+		await this.loadSettings();
+
+		// Đăng ký View Sidebar Chat độc lập
+		this.registerView(
+			VIEW_TYPE_QUICK_CHAT,
+			(leaf) => new QuickChatView(leaf, this)
+		);
+
+		// Đăng ký Icon Ribbon bên góc trái Obsidian để mở panel
+		this.addRibbonIcon('message-square-plus', 'Kích hoạt Đối thoại nhanh AI', () => {
+			this.activateChatView();
+		});
+
+		// Đăng ký Icon Ribbon bên góc trái Obsidian để tạo nhân vật mới
+		this.addRibbonIcon('user-plus', 'Tạo nhân vật D&D mới (PC/NPC)', () => {
+			new CreateCharacterModal(this.app, this, () => {
+				const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_QUICK_CHAT)[0];
+				if (leaf && leaf.view instanceof QuickChatView) {
+					leaf.view.refreshDropdowns();
+				}
+			}).open();
+		});
+
+		// Tạo Command để mở tính năng qua Command Palette (Ctrl/Cmd + P)
+		this.addCommand({
+			id: 'open-dnd-quick-chat',
+			name: 'Mở cửa sổ Đối thoại nhanh AI',
+			callback: () => {
+				this.activateChatView();
+			}
+		});
+
+
+
+		// Tạo Command để tạo nhân vật mới
+		this.addCommand({
+			id: 'create-dnd-character',
+			name: 'Tạo nhân vật D&D mới (PC/NPC)',
+			callback: () => {
+				new CreateCharacterModal(this.app, this, () => {
+					const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_QUICK_CHAT)[0];
+					if (leaf && leaf.view instanceof QuickChatView) {
+						leaf.view.refreshDropdowns();
+					}
+				}).open();
+			}
+		});
+
+		// Nạp bảng Cài đặt
+		this.addSettingTab(new SampleSettingTab(this.app, this));
+	}
+
+	onunload() {
+		// Hủy View khi tắt Plugin tránh rò rỉ bộ nhớ
+		this.app.workspace.detachLeavesOfType(VIEW_TYPE_QUICK_CHAT);
+	}
+
+	async activateChatView() {
+		const { workspace } = this.app;
+
+		let leaf = workspace.getLeavesOfType(VIEW_TYPE_QUICK_CHAT)[0] || null;
+
+		if (!leaf) {
+			// Mở panel ở Sidebar bên phải
+			const rightLeaf = workspace.getRightLeaf(false);
+			if (rightLeaf) {
+				leaf = rightLeaf;
+				await leaf.setViewState({
+					type: VIEW_TYPE_QUICK_CHAT,
+					active: true,
+				});
+			}
+		}
+
+		if (leaf) {
+			workspace.revealLeaf(leaf);
+		}
+	}
 
 	async loadSettings() {
-		this.settings = Object.assign(
-			{},
-			DEFAULT_SETTINGS,
-			(await this.loadData()) as Partial<MyPluginSettings>,
-		);
+		const data = await this.loadData() || {};
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
+
+		// Migration: Move old geminiApiKey to geminiApiKeys[0] if exists
+		if (data.geminiApiKey && typeof data.geminiApiKey === 'string') {
+			if (!this.settings.geminiApiKeys) {
+				this.settings.geminiApiKeys = ['', '', '', '', ''];
+			}
+			if (this.settings.geminiApiKeys[0] === '') {
+				this.settings.geminiApiKeys[0] = data.geminiApiKey;
+			}
+			delete data.geminiApiKey;
+			await this.saveSettings();
+		}
 	}
 
 	async saveSettings() {
 		await this.saveData(this.settings);
-	}
-}
-
-class SampleModal extends Modal {
-	onOpen() {
-		const { contentEl } = this;
-		contentEl.setText('Woah!');
-	}
-
-	onClose() {
-		const { contentEl } = this;
-		contentEl.empty();
 	}
 }

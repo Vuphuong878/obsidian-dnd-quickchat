@@ -1,11 +1,10 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "obsidian-dnd-quickchat",
+	"name": "D&D AI Quick Chat Roleplay",
 	"version": "1.0.0",
-	"minAppVersion": "1.0.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"minAppVersion": "1.4.0",
+	"description": "Nhập vai vào nhân vật RPG bằng AI thông qua gợi ý, sử dụng các note thế giới, nhân vật và NPC làm kho trí tuệ.",
+	"author": "RPG Architect & Bạn",
+	"authorUrl": "https://ai.studio/build",
 	"isDesktopOnly": false
 }
