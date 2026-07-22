@@ -1,5 +1,5 @@
 import { Plugin, WorkspaceLeaf, Notice } from 'obsidian';
-import { QuickChatView, VIEW_TYPE_QUICK_CHAT, CreateCharacterModal } from './chat-view';
+import { QuickChatView, VIEW_TYPE_QUICK_CHAT } from './chat-view';
 import { MyPluginSettings, DEFAULT_SETTINGS, SampleSettingTab } from './settings';
 
 export default class MyPlugin extends Plugin {
@@ -33,12 +33,6 @@ export default class MyPlugin extends Plugin {
 	}
 
 	triggerStatusUpdate() {
-		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_QUICK_CHAT);
-		for (const leaf of leaves) {
-			if (leaf.view instanceof QuickChatView) {
-				leaf.view.updateApiStatusDisplay();
-			}
-		}
 		if (this.activeSettingTab && this.activeSettingTab.containerEl && document.body.contains(this.activeSettingTab.containerEl)) {
 			this.activeSettingTab.display();
 		}
@@ -59,16 +53,6 @@ export default class MyPlugin extends Plugin {
 			this.activateChatView();
 		});
 
-		// Đăng ký Icon Ribbon bên góc trái Obsidian để tạo nhân vật mới
-		this.addRibbonIcon('user-plus', 'Tạo nhân vật D&D mới (PC/NPC)', () => {
-			new CreateCharacterModal(this.app, this, () => {
-				const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_QUICK_CHAT)[0];
-				if (leaf && leaf.view instanceof QuickChatView) {
-					leaf.view.refreshDropdowns();
-				}
-			}).open();
-		});
-
 		// Tạo Command để mở tính năng qua Command Palette (Ctrl/Cmd + P)
 		this.addCommand({
 			id: 'open-dnd-quick-chat',
@@ -78,19 +62,24 @@ export default class MyPlugin extends Plugin {
 			}
 		});
 
-
-
-		// Tạo Command để tạo nhân vật mới
+		// Tạo Command bật/tắt thuộc tính quickchat trong frontmatter cho tệp đang mở
 		this.addCommand({
-			id: 'create-dnd-character',
-			name: 'Tạo nhân vật D&D mới (PC/NPC)',
-			callback: () => {
-				new CreateCharacterModal(this.app, this, () => {
-					const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_QUICK_CHAT)[0];
-					if (leaf && leaf.view instanceof QuickChatView) {
-						leaf.view.refreshDropdowns();
-					}
-				}).open();
+			id: 'toggle-quickchat-context',
+			name: 'Bật/Tắt ngữ cảnh QuickChat (quickchat: true/false) cho tệp hiện tại',
+			callback: async () => {
+				const activeFile = this.app.workspace.getActiveFile();
+				if (!activeFile) {
+					new Notice('Không có tệp nào đang mở!');
+					return;
+				}
+
+				let newState = true;
+				await this.app.fileManager.processFrontMatter(activeFile, (fm) => {
+					newState = fm.quickchat !== true;
+					fm.quickchat = newState;
+				});
+
+				new Notice(`Đã ${newState ? 'BẬT' : 'TẮT'} thuộc tính quickchat cho "${activeFile.basename}".`);
 			}
 		});
 

@@ -1,5 +1,6 @@
 import { requestUrl } from 'obsidian';
 import MyPlugin from './main';
+import { ProxyConfig } from './settings';
 
 export interface RoleplayContext {
     pcName: string;
@@ -17,7 +18,9 @@ export interface RoleplayContext {
 
 export async function generateAiRoleplay(
     plugin: MyPlugin,
-    context: RoleplayContext
+    context: RoleplayContext,
+    proxyConfig?: ProxyConfig | null,
+    onUpdate?: (chunk: string) => void
 ): Promise<string> {
     // Định dạng lịch sử trò chuyện
     const formattedHistory = context.chatHistory.map(msg => {
@@ -25,7 +28,7 @@ export async function generateAiRoleplay(
         return `${name}: ${msg.text}`;
     }).join('\n');
 
-    let systemInstruction = `Bạn đang nhập vai là **Nhân vật chính (PC)** trong thế giới D&D.
+    let systemInstruction = `${plugin.settings.customPrompt}
 
 **BỐI CẢNH THẾ GIỚI & THÔNG TIN THAM KHẢO:**
 ${context.worldInfo}
@@ -73,6 +76,14 @@ Bạn đang **chủ động** thực hiện một hành động hoặc nói mộ
 -   **KHÔNG TỰ Ý TẢ CẢNH:** Không được tự bịa ra kết quả của hành động (VD: không viết "Tôi tìm thấy kho báu" khi chưa có thông báo từ DM). Chỉ mô tả nỗ lực hành động.
 -   **HÀNH ĐỘNG CỤ THỂ:** Thực hiện chính xác chỉ thị.`;
 
+    if (plugin.settings.customStyle && plugin.settings.customStyle.trim()) {
+        systemInstruction += `\n\n**VĂN PHONG CÁ NHÂN (STYLE):**\n${plugin.settings.customStyle}`;
+    }
+
+    if (plugin.settings.customRules && plugin.settings.customRules.trim()) {
+        systemInstruction += `\n\n**QUY TẮC BỔ SUNG (RULES):**\n${plugin.settings.customRules}`;
+    }
+
     if (context.isProactiveMode) {
         systemInstruction += `\n\n**CHẾ ĐỘ CHỦ ĐỘNG**: Hãy tự tạo chuyển động hoặc quan sát môi trường để dẫn dắt câu chuyện tiến lên, không thụ động đợi câu hỏi. Không dùng thuật ngữ game (Insight, Roll...)`;
     }
@@ -96,12 +107,18 @@ Bạn đang **chủ động** thực hiện một hành động hoặc nói mộ
         }
     ];
 
-    return fetchWithFallback(plugin, bodyContents);
+    if (proxyConfig) {
+        return fetchWithProxyStreaming(proxyConfig, systemInstruction, onUpdate);
+    } else {
+        return fetchWithFallback(plugin, bodyContents, onUpdate);
+    }
 }
 
 export async function generateChatSummary(
     plugin: MyPlugin,
-    chatHistory: { sender: 'player' | 'npc', text: string, npcName?: string }[]
+    chatHistory: { sender: 'player' | 'npc', text: string, npcName?: string }[],
+    proxyConfig?: ProxyConfig | null,
+    onUpdate?: (chunk: string) => void
 ): Promise<string> {
     const formattedHistory = chatHistory.map(msg => {
         const name = msg.sender === 'player' ? 'PC' : (msg.npcName || 'NPC');
@@ -122,10 +139,14 @@ Hãy viết một đoạn tóm tắt ngắn (Distilled Memory, khoảng 2-4 câu
         }
     ];
 
-    return fetchWithFallback(plugin, bodyContents);
+    if (proxyConfig) {
+        return fetchWithProxyStreaming(proxyConfig, promptUser, onUpdate);
+    } else {
+        return fetchWithFallback(plugin, bodyContents, onUpdate);
+    }
 }
 
-async function fetchWithFallback(plugin: MyPlugin, bodyContents: any): Promise<string> {
+async function fetchWithFallback(plugin: MyPlugin, bodyContents: any, onUpdate?: (chunk: string) => void): Promise<string> {
     const apiKeys = plugin.settings.geminiApiKeys;
     const validKeyIndices = apiKeys
         .map((key, index) => ({ key, index }))
@@ -146,7 +167,7 @@ async function fetchWithFallback(plugin: MyPlugin, bodyContents: any): Promise<s
                 continue;
             }
             try {
-                const result = await tryCallApi(key, model, bodyContents);
+                const result = await tryCallApiStream(key, model, bodyContents, onUpdate);
                 plugin.setApiModelStatus(index, model, 'AVAILABLE');
                 return result;
             } catch (err) {
@@ -164,7 +185,7 @@ async function fetchWithFallback(plugin: MyPlugin, bodyContents: any): Promise<s
                 continue;
             }
             try {
-                const result = await tryCallApi(key, model, bodyContents);
+                const result = await tryCallApiStream(key, model, bodyContents, onUpdate);
                 plugin.setApiModelStatus(index, model, 'AVAILABLE');
                 return result;
             } catch (err) {
@@ -177,11 +198,10 @@ async function fetchWithFallback(plugin: MyPlugin, bodyContents: any): Promise<s
     throw new Error("Toàn bộ API Keys và Models đều đã cạn kiệt hoặc gặp lỗi. Vui lòng kiểm tra lại Quota API trên Google AI Studio.");
 }
 
-async function tryCallApi(apiKey: string, modelName: string, bodyContents: any): Promise<string> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+async function tryCallApiStream(apiKey: string, modelName: string, bodyContents: any, onUpdate?: (chunk: string) => void): Promise<string> {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:streamGenerateContent?alt=sse&key=${apiKey}`;
 
-    const response = await requestUrl({
-        url: url,
+    const response = await fetch(url, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -189,9 +209,108 @@ async function tryCallApi(apiKey: string, modelName: string, bodyContents: any):
         body: JSON.stringify({ contents: bodyContents })
     });
 
-    const data = response.json;
-    if (data && data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
-        return data.candidates[0].content.parts[0].text.trim();
+    if (!response.ok) {
+        throw new Error(`Gemini API Error: ${response.status} ${response.statusText}`);
     }
-    throw new Error("Không nhận diện được cấu trúc phản hồi từ API Gemini.");
+
+    return await readSSEStream(response, 'gemini', onUpdate);
+}
+
+async function fetchWithProxyStreaming(proxy: ProxyConfig, promptText: string, onUpdate?: (chunk: string) => void): Promise<string> {
+    let baseUrl = proxy.url.replace(/\/+$/, '');
+    
+    // Auto-detect format
+    let format = proxy.format;
+    if (format === 'auto') {
+        if (!proxy.key.startsWith('AIza') || baseUrl.includes('chat/completions')) {
+            format = 'openai';
+        } else {
+            format = 'gemini';
+        }
+    }
+
+    let url = '';
+    let headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+    };
+    let body: any = {};
+
+    if (format === 'openai') {
+        if (!baseUrl.endsWith('/v1/chat/completions') && !baseUrl.endsWith('/chat/completions')) {
+            url = `${baseUrl}/v1/chat/completions`;
+        } else {
+            url = baseUrl;
+        }
+        headers['Authorization'] = `Bearer ${proxy.key}`;
+        body = {
+            model: proxy.customModelName || 'gpt-4o',
+            messages: [{ role: 'user', content: promptText }],
+            stream: true
+        };
+    } else {
+        const modelName = proxy.customModelName || 'gemini-2.5-pro';
+        if (!baseUrl.includes(':streamGenerateContent')) {
+            url = `${baseUrl}/v1beta/models/${modelName}:streamGenerateContent?alt=sse`;
+        } else {
+            url = baseUrl;
+        }
+        headers['x-goog-api-key'] = proxy.key;
+        body = {
+            contents: [{ role: 'user', parts: [{ text: promptText }] }]
+        };
+    }
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+        throw new Error(`Proxy API Error: ${response.status} ${response.statusText}`);
+    }
+
+    return await readSSEStream(response, format, onUpdate);
+}
+
+async function readSSEStream(response: Response, format: 'openai' | 'gemini', onUpdate?: (chunk: string) => void): Promise<string> {
+    if (!response.body) throw new Error("No response body from stream");
+    
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let fullText = "";
+    let buffer = "";
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ""; 
+
+        for (const line of lines) {
+            if (line.trim() === '') continue;
+            if (line.startsWith('data: ')) {
+                const dataStr = line.slice(6).trim();
+                if (dataStr === '[DONE]') continue;
+                try {
+                    const data = JSON.parse(dataStr);
+                    let chunk = "";
+                    if (format === 'openai') {
+                        chunk = data.choices?.[0]?.delta?.content || "";
+                    } else {
+                        chunk = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                    }
+                    if (chunk) {
+                        fullText += chunk;
+                        if (onUpdate) onUpdate(chunk);
+                    }
+                } catch (e) {
+                    // Ignore parsing errors for incomplete chunks or keepalives
+                }
+            }
+        }
+    }
+    return fullText.trim();
 }

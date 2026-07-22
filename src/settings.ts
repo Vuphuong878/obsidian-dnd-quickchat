@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
+import { App, PluginSettingTab, Setting, Notice, Menu } from 'obsidian';
 import MyPlugin from './main';
 
 export interface ChatMessage {
@@ -7,16 +7,39 @@ export interface ChatMessage {
 	npcName?: string;
 }
 
+export interface ProxyConfig {
+	id: string;
+	url: string;
+	key: string;
+	format: 'auto' | 'openai' | 'gemini';
+	selectedModel?: string;
+	customModelName?: string;
+}
+
 export interface MyPluginSettings {
 	geminiApiKeys: string[];
 	defaultPcNote: string; // Tên file chứa nhân vật PC mặc định
 	chatHistory: ChatMessage[];
+	lastSelectedNpcs: string[];
+	lastSelectedPcs: string[];
+	isProxyEnabled: boolean;
+	proxies: ProxyConfig[];
+	customPrompt: string;
+	customStyle: string;
+	customRules: string;
 }
 
 export const DEFAULT_SETTINGS: MyPluginSettings = {
 	geminiApiKeys: ['', '', '', '', ''],
 	defaultPcNote: 'Hero_Sylvie',
-	chatHistory: []
+	chatHistory: [],
+	lastSelectedNpcs: [],
+	lastSelectedPcs: [],
+	isProxyEnabled: false,
+	proxies: [],
+	customPrompt: 'Bạn đang nhập vai là **Nhân vật chính (PC)** trong thế giới D&D.',
+	customStyle: '',
+	customRules: ''
 };
 
 export class SampleSettingTab extends PluginSettingTab {
@@ -70,6 +93,118 @@ export class SampleSettingTab extends PluginSettingTab {
 					this.plugin.settings.defaultPcNote = value;
 					await this.plugin.saveSettings();
 				}));
+
+		containerEl.createEl('h3', { text: 'Cài đặt Proxy Tùy chỉnh (Custom Reverse Proxy)' });
+
+		new Setting(containerEl)
+			.setName('Bật Custom Proxy Toàn Cục')
+			.setDesc('Khi bật, mọi yêu cầu AI sẽ được chuyển hướng qua các Proxy cấu hình bên dưới thay vì dùng API Key mặc định.')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.isProxyEnabled)
+				.onChange(async (value) => {
+					this.plugin.settings.isProxyEnabled = value;
+					await this.plugin.saveSettings();
+					this.display();
+				}));
+
+		if (this.plugin.settings.isProxyEnabled) {
+			const proxyContainer = containerEl.createDiv({ cls: 'dnd-proxy-container' });
+			proxyContainer.style.border = '1px solid var(--background-modifier-border)';
+			proxyContainer.style.padding = '10px';
+			proxyContainer.style.borderRadius = '5px';
+			proxyContainer.style.marginBottom = '20px';
+
+			this.plugin.settings.proxies.forEach((proxy, index) => {
+				const pDiv = proxyContainer.createDiv();
+				pDiv.style.borderBottom = '1px solid var(--background-modifier-border)';
+				pDiv.style.paddingBottom = '10px';
+				pDiv.style.marginBottom = '10px';
+
+				new Setting(pDiv)
+					.setName(`Proxy #${index + 1}`)
+					.addText(text => text
+						.setPlaceholder('URL (vd: https://api.openai.com)')
+						.setValue(proxy.url)
+						.onChange(async (val) => { proxy.url = val; await this.plugin.saveSettings(); }))
+					.addText(text => text
+						.setPlaceholder('API Key / Pass')
+						.setValue(proxy.key)
+						.onChange(async (val) => { proxy.key = val; await this.plugin.saveSettings(); }))
+					.addButton(btn => btn
+						.setButtonText('Xóa')
+						.setWarning()
+						.onClick(async () => {
+							this.plugin.settings.proxies.splice(index, 1);
+							await this.plugin.saveSettings();
+							this.display();
+						}));
+
+				new Setting(pDiv)
+					.setName('Format & Model')
+					.addDropdown(drop => drop
+						.addOptions({ 'auto': 'Tự động', 'openai': 'OpenAI', 'gemini': 'Gemini' })
+						.setValue(proxy.format)
+						.onChange(async (val: string) => { proxy.format = val as 'auto'|'openai'|'gemini'; await this.plugin.saveSettings(); }))
+					.addText(text => text
+						.setPlaceholder('Model tùy chỉnh (vd: deepseek-chat)')
+						.setValue(proxy.customModelName || '')
+						.onChange(async (val) => { proxy.customModelName = val; await this.plugin.saveSettings(); }))
+					.addButton(btn => btn
+						.setIcon('refresh-cw')
+						.setTooltip('Tải danh sách Model từ Proxy')
+						.onClick(async (e) => {
+							if (!proxy.url) {
+								new Notice('Vui lòng nhập URL của Proxy trước');
+								return;
+							}
+							btn.setIcon('hourglass');
+							try {
+								const baseUrl = proxy.url.replace(/\/+$/, '');
+								const url = `${baseUrl}/v1/models`;
+								const res = await fetch(url, {
+									headers: proxy.key ? { 'Authorization': `Bearer ${proxy.key}` } : {}
+								});
+								if (!res.ok) throw new Error(res.statusText);
+								const data = await res.json();
+								const models = data.data;
+								if (!models || !Array.isArray(models)) throw new Error('API không trả về mảng Model chuẩn');
+								
+								const menu = new Menu();
+								models.forEach((m: any) => {
+									menu.addItem((item) =>
+										item
+											.setTitle(m.id)
+											.onClick(async () => {
+												proxy.customModelName = m.id;
+												await this.plugin.saveSettings();
+												this.display();
+											})
+									);
+								});
+								menu.showAtMouseEvent(e as MouseEvent);
+							} catch (err: any) {
+								new Notice('Không thể tải danh sách model: ' + err.message);
+							} finally {
+								btn.setIcon('refresh-cw');
+							}
+						}));
+			});
+
+			new Setting(proxyContainer)
+				.addButton(btn => btn
+					.setButtonText('+ Thêm Proxy Mới')
+					.onClick(async () => {
+						this.plugin.settings.proxies.push({
+							id: Date.now().toString(),
+							url: '',
+							key: '',
+							format: 'auto',
+							customModelName: 'gpt-4o'
+						});
+						await this.plugin.saveSettings();
+						this.display();
+					}));
+		}
 
 		// Bảng hiển thị Live Status Dashboard
 		const statusContainer = containerEl.createDiv({ cls: 'dnd-status-container' });

@@ -19,8 +19,7 @@ export class QuickChatView extends ItemView {
     selectedMood: string = 'Bình thường';
     pcSelectEl!: HTMLSelectElement;
     npcSelectEl!: HTMLSelectElement;
-    apiStatusDetailsEl!: HTMLDetailsElement;
-    apiStatusContentEl!: HTMLDivElement;
+    refreshTimer: any = null;
 
     constructor(leaf: WorkspaceLeaf, plugin: MyPlugin) {
         super(leaf);
@@ -43,12 +42,26 @@ export class QuickChatView extends ItemView {
         // Nạp lịch sử chat từ plugin settings
         this.chatHistory = this.plugin.settings.chatHistory || [];
 
+        // Đăng ký sự kiện tự động đồng bộ hóa danh sách khi có thay đổi trong Vault / MetadataCache
+        this.registerEvent(
+            this.app.metadataCache.on('changed', () => this.refreshDropdownsDebounced())
+        );
+        this.registerEvent(
+            this.app.vault.on('create', () => this.refreshDropdownsDebounced())
+        );
+        this.registerEvent(
+            this.app.vault.on('delete', () => this.refreshDropdownsDebounced())
+        );
+        this.registerEvent(
+            this.app.vault.on('rename', () => this.refreshDropdownsDebounced())
+        );
+
         const container = this.contentEl;
         container.empty();
         container.addClass('dnd-chat-sidebar');
 
-        // Khung trạng thái API & Models thu gọn
-        this.renderApiStatusPanel(container);
+        // Khung Cấu hình Prompt & Văn phong thu gọn
+        this.renderPromptConfigPanel(container);
 
         // Khung danh sách PC & NPC trên cùng 1 hàng
         const selectorsRow = container.createDiv({ cls: 'dnd-selectors-row' });
@@ -57,11 +70,25 @@ export class QuickChatView extends ItemView {
         pcCol.createEl('span', { text: 'PC:', cls: 'dnd-label' });
         this.pcSelectEl = pcCol.createEl('select', { cls: 'dnd-select' });
         this.populateDropdown(this.pcSelectEl, 'character');
+        this.pcSelectEl.addEventListener('change', () => {
+            const val = this.pcSelectEl.value;
+            if (val) {
+                this.updateSelectionOrder('character', val);
+                this.populateDropdown(this.pcSelectEl, 'character');
+            }
+        });
 
         const npcCol = selectorsRow.createDiv({ cls: 'dnd-selector-col' });
         npcCol.createEl('span', { text: 'NPC:', cls: 'dnd-label' });
         this.npcSelectEl = npcCol.createEl('select', { cls: 'dnd-select' });
         this.populateDropdown(this.npcSelectEl, 'npc');
+        this.npcSelectEl.addEventListener('change', () => {
+            const val = this.npcSelectEl.value;
+            if (val) {
+                this.updateSelectionOrder('npc', val);
+                this.populateDropdown(this.npcSelectEl, 'npc');
+            }
+        });
 
         // Khung tâm trạng (Mood buttons)
         const moodSection = container.createDiv({ cls: 'dnd-mood-sec' });
@@ -123,6 +150,10 @@ export class QuickChatView extends ItemView {
                 new Notice("Vui lòng nhập nội dung cho PC ở ô HÀNH ĐỘNG / GỢI Ý CHO PC!");
                 return;
             }
+            const chosenPc = this.pcSelectEl.value;
+            if (chosenPc) {
+                this.updateSelectionOrder('character', chosenPc);
+            }
             // Thêm vào history dưới danh nghĩa PC
             await this.pushToChatHistory({ sender: 'player', text: pcText });
             this.renderChatMessages(chatBox);
@@ -139,6 +170,9 @@ export class QuickChatView extends ItemView {
             const pcSuggest = suggestionInput.value.trim();
             const chosenPc = this.pcSelectEl.value;
             const chosenNpc = this.npcSelectEl.value;
+
+            if (chosenPc) this.updateSelectionOrder('character', chosenPc);
+            if (chosenNpc) this.updateSelectionOrder('npc', chosenNpc);
 
             const npcDisplayName = this.npcSelectEl.options[this.npcSelectEl.selectedIndex]?.text || chosenNpc || 'NPC';
 
@@ -159,6 +193,19 @@ export class QuickChatView extends ItemView {
                 const pcDisplayName = this.pcSelectEl.options[this.pcSelectEl.selectedIndex]?.text || chosenPc;
                 const npcDisplayName = this.npcSelectEl.options[this.npcSelectEl.selectedIndex]?.text || chosenNpc;
 
+                let proxyConfig = null;
+                if (this.plugin.settings.isProxyEnabled && this.plugin.settings.proxies && this.plugin.settings.proxies.length > 0) {
+                    proxyConfig = this.plugin.settings.proxies[0];
+                }
+
+                // Chèn tin nhắn rỗng để bắt đầu stream
+                const pendingMsg = { sender: 'player' as const, text: '' };
+                this.chatHistory.push(pendingMsg);
+                this.renderChatMessages(chatBox);
+                
+                const msgElements = chatBox.querySelectorAll('.dnd-msg-body');
+                const lastMsgBody = msgElements[msgElements.length - 1] as HTMLElement;
+
                 const response = await generateAiRoleplay(
                     this.plugin,
                     {
@@ -168,16 +215,27 @@ export class QuickChatView extends ItemView {
                         npcInfo: vaultContext.npcInfo,
                         worldInfo: vaultContext.worldInfo,
                         sceneContext: vaultContext.activeNoteContent,
-                        chatHistory: this.chatHistory,
+                        chatHistory: this.chatHistory.slice(0, -1),
                         pcMood: this.selectedMood,
                         pcSuggestion: pcSuggest,
                         isProactiveMode: pCheck.checked,
                         isNsfwMode: nCheck.checked
+                    },
+                    proxyConfig,
+                    (chunk: string) => {
+                        pendingMsg.text += chunk;
+                        const pElements = lastMsgBody.querySelectorAll('p.dnd-text');
+                        pElements.forEach(p => p.remove());
+                        this.renderMessageText(pendingMsg.text, lastMsgBody);
+                        chatBox.scrollTop = chatBox.scrollHeight;
                     }
                 );
 
-                await this.pushToChatHistory({ sender: 'player', text: response });
-                this.renderChatMessages(chatBox);
+                if (this.chatHistory.length > 30) {
+                    this.chatHistory = this.chatHistory.slice(this.chatHistory.length - 30);
+                }
+                this.plugin.settings.chatHistory = this.chatHistory;
+                await this.plugin.saveSettings();
 
                 // Tự động chèn đoạn hội thoại này vào file nhật ký ngày hôm nay
                 await this.savePcChatToDailyFile(response, true);
@@ -213,6 +271,7 @@ export class QuickChatView extends ItemView {
                 return;
             }
             const chosenNpc = this.npcSelectEl.value;
+            if (chosenNpc) this.updateSelectionOrder('npc', chosenNpc);
             const npcDisplayName = this.npcSelectEl.options[this.npcSelectEl.selectedIndex]?.text || chosenNpc || 'NPC';
 
             await this.pushToChatHistory({ sender: 'npc', text: npcText, npcName: npcDisplayName });
@@ -231,21 +290,49 @@ export class QuickChatView extends ItemView {
         await this.plugin.saveSettings();
     }
 
+    updateSelectionOrder(type: 'character' | 'npc', value: string) {
+        if (!value) return;
+        if (!this.plugin.settings.lastSelectedNpcs) {
+            this.plugin.settings.lastSelectedNpcs = [];
+        }
+        if (!this.plugin.settings.lastSelectedPcs) {
+            this.plugin.settings.lastSelectedPcs = [];
+        }
+        const list = type === 'character' ? this.plugin.settings.lastSelectedPcs : this.plugin.settings.lastSelectedNpcs;
+        const index = list.indexOf(value);
+        if (index > -1) {
+            list.splice(index, 1);
+        }
+        list.unshift(value);
+        if (list.length > 50) {
+            list.splice(50);
+        }
+        this.plugin.saveSettings();
+    }
+
     // Tự động quét các note có thuộc tính rpg_type hoặc tags tương ứng
     async populateDropdown(selectEl: HTMLSelectElement, type: 'character' | 'npc') {
+        const currentValue = selectEl.value;
         selectEl.empty();
         const files = this.app.vault.getMarkdownFiles();
         let found = false;
 
         const targetTag = type === 'character' ? 'dnd-character' : 'dnd-npc';
+        const matchedItems: { value: string; text: string }[] = [];
 
         for (const file of files) {
             const cache = this.app.metadataCache.getFileCache(file);
             const frontmatter = cache?.frontmatter;
             const rpgType = frontmatter?.rpg_type;
+            const storytellerType = frontmatter?.type;
             const fileTags = (cache ? getAllTags(cache) : []) ?? [];
 
+            const isStorytellerChar = storytellerType === 'character' || file.path.includes('/Characters/') || file.path.includes('\\Characters\\');
             let isMatched = rpgType === type;
+            if (isStorytellerChar) {
+                isMatched = true;
+            }
+
             let extractedName = '';
 
             for (let tag of fileTags) {
@@ -271,12 +358,40 @@ export class QuickChatView extends ItemView {
 
             if (isMatched) {
                 const displayName = extractedName || frontmatter?.name || file.basename;
-                selectEl.createEl('option', { value: file.basename, text: displayName });
+                matchedItems.push({ value: file.basename, text: displayName });
                 found = true;
             }
         }
 
-        if (!found) {
+        if (found) {
+            const recencyList = type === 'character' 
+                ? (this.plugin.settings.lastSelectedPcs || []) 
+                : (this.plugin.settings.lastSelectedNpcs || []);
+
+            matchedItems.sort((a, b) => {
+                const indexA = recencyList.indexOf(a.value);
+                const indexB = recencyList.indexOf(b.value);
+
+                if (indexA !== -1 && indexB !== -1) {
+                    return indexA - indexB;
+                }
+                if (indexA !== -1) {
+                    return -1;
+                }
+                if (indexB !== -1) {
+                    return 1;
+                }
+                return a.text.localeCompare(b.text);
+            });
+
+            for (const item of matchedItems) {
+                selectEl.createEl('option', { value: item.value, text: item.text });
+            }
+
+            if (currentValue && matchedItems.some(item => item.value === currentValue)) {
+                selectEl.value = currentValue;
+            }
+        } else {
             const displayName = type === 'character' ? 'PC' : 'NPC';
             selectEl.createEl('option', { value: '', text: `Chưa quét được ${displayName}` });
         }
@@ -360,6 +475,23 @@ export class QuickChatView extends ItemView {
         if (this.npcSelectEl) this.populateDropdown(this.npcSelectEl, 'npc');
     }
 
+    refreshDropdownsDebounced() {
+        if (this.refreshTimer) {
+            window.clearTimeout(this.refreshTimer);
+        }
+        this.refreshTimer = window.setTimeout(() => {
+            this.refreshDropdowns();
+            this.refreshTimer = null;
+        }, 500);
+    }
+
+    async onClose() {
+        if (this.refreshTimer) {
+            window.clearTimeout(this.refreshTimer);
+            this.refreshTimer = null;
+        }
+    }
+
     formatCharacterInfo(file: TFile, rawContent: string): string {
         const cache = this.app.metadataCache.getFileCache(file);
         const frontmatter = cache?.frontmatter;
@@ -368,6 +500,9 @@ export class QuickChatView extends ItemView {
         }
 
         let info = `[NHÂN VẬT: ${frontmatter.name || file.basename}]\n`;
+        if (frontmatter.gender) info += `- Giới tính: ${frontmatter.gender}\n`;
+        if (frontmatter.age) info += `- Tuổi: ${frontmatter.age}\n`;
+        if (frontmatter.height) info += `- Chiều cao: ${frontmatter.height}\n`;
         if (frontmatter.race) info += `- Chủng tộc: ${frontmatter.race}\n`;
         
         if (frontmatter.class) {
@@ -376,15 +511,31 @@ export class QuickChatView extends ItemView {
         if (frontmatter.level) info += `- Cấp độ: ${frontmatter.level}\n`;
         if (frontmatter.alignment) info += `- Thiên hướng: ${frontmatter.alignment}\n`;
         if (frontmatter.background) info += `- Nguồn gốc: ${frontmatter.background}\n`;
+        if (frontmatter.traits) {
+            info += `- Đặc điểm / Tính cách: ${Array.isArray(frontmatter.traits) ? frontmatter.traits.join(', ') : frontmatter.traits}\n`;
+        }
+        if (frontmatter.affiliation) {
+            info += `- Tổ chức / Thuộc về: ${frontmatter.affiliation}\n`;
+        }
+        if (frontmatter.cultures) {
+            info += `- Văn hóa: ${Array.isArray(frontmatter.cultures) ? frontmatter.cultures.join(', ') : frontmatter.cultures}\n`;
+        }
+        if (frontmatter.location || frontmatter.currentLocationId) {
+            info += `- Vị trí: ${frontmatter.location || frontmatter.currentLocationId}\n`;
+        }
 
         if (frontmatter.status) {
-            info += `- Trạng thái:\n`;
-            if (frontmatter.status.hp) {
-                info += `  * HP: ${frontmatter.status.hp.current}/${frontmatter.status.hp.max}\n`;
+            if (typeof frontmatter.status === 'string') {
+                info += `- Trạng thái: ${frontmatter.status}\n`;
+            } else if (typeof frontmatter.status === 'object') {
+                info += `- Trạng thái:\n`;
+                if (frontmatter.status.hp) {
+                    info += `  * HP: ${frontmatter.status.hp.current}/${frontmatter.status.hp.max}\n`;
+                }
+                if (frontmatter.status.ac) info += `  * Giáp (AC): ${frontmatter.status.ac}\n`;
+                if (frontmatter.status.initiative) info += `  * Sáng kiến (Initiative): +${frontmatter.status.initiative}\n`;
+                if (frontmatter.status.passive_perception) info += `  * Nhận thức thụ động: ${frontmatter.status.passive_perception}\n`;
             }
-            if (frontmatter.status.ac) info += `  * Giáp (AC): ${frontmatter.status.ac}\n`;
-            if (frontmatter.status.initiative) info += `  * Sáng kiến (Initiative): +${frontmatter.status.initiative}\n`;
-            if (frontmatter.status.passive_perception) info += `  * Nhận thức thụ động: ${frontmatter.status.passive_perception}\n`;
         }
 
         if (frontmatter.stats) {
@@ -616,59 +767,47 @@ export class QuickChatView extends ItemView {
         return null;
     }
 
-    renderApiStatusPanel(container: HTMLElement) {
-        this.apiStatusDetailsEl = container.createEl('details', { cls: 'dnd-api-status-details' });
-        this.apiStatusDetailsEl.createEl('summary', { cls: 'dnd-api-status-summary', text: '⚡ Trạng thái API & Models' });
-        this.apiStatusContentEl = this.apiStatusDetailsEl.createDiv({ cls: 'dnd-api-status-content' });
-        this.updateApiStatusDisplay();
-    }
+    renderPromptConfigPanel(container: HTMLElement) {
+        const detailsEl = container.createEl('details', { cls: 'dnd-api-status-details' });
+        detailsEl.createEl('summary', { cls: 'dnd-api-status-summary', text: '⚙️ Cấu hình Prompt & Văn phong' });
+        
+        const contentEl = detailsEl.createDiv({ cls: 'dnd-api-status-content' });
+        contentEl.style.display = 'flex';
+        contentEl.style.flexDirection = 'column';
+        contentEl.style.gap = '10px';
+        contentEl.style.padding = '10px 0';
 
-    updateApiStatusDisplay() {
-        if (!this.apiStatusContentEl) return;
-        this.apiStatusContentEl.empty();
+        // Prompt
+        contentEl.createEl('div', { text: 'Chỉ thị vai trò (Prompt):', cls: 'dnd-input-label' });
+        const promptInput = contentEl.createEl('textarea', { cls: 'dnd-textarea-npc' });
+        promptInput.style.minHeight = '60px';
+        promptInput.value = this.plugin.settings.customPrompt;
+        promptInput.addEventListener('change', async () => {
+            this.plugin.settings.customPrompt = promptInput.value;
+            await this.plugin.saveSettings();
+        });
 
-        const goodModels = ['gemini-3.5-flash', 'gemini-3-flash', 'gemini-2.5-flash'];
-        const badModels = ['gemma-4-31b-it', 'gemma-4-26b-a4b-it'];
-        const allModels = [...goodModels, ...badModels];
+        // Style
+        contentEl.createEl('div', { text: 'Văn phong cá nhân (Style):', cls: 'dnd-input-label' });
+        const styleInput = contentEl.createEl('textarea', { cls: 'dnd-textarea-npc' });
+        styleInput.style.minHeight = '60px';
+        styleInput.placeholder = 'Ví dụ: Hài hước, cợt nhả, thích châm biếm...';
+        styleInput.value = this.plugin.settings.customStyle;
+        styleInput.addEventListener('change', async () => {
+            this.plugin.settings.customStyle = styleInput.value;
+            await this.plugin.saveSettings();
+        });
 
-        const shortNames: { [model: string]: string } = {
-            'gemini-3.5-flash': '3.5',
-            'gemini-3-flash': '3',
-            'gemini-2.5-flash': '2.5',
-            'gemma-4-31b-it': '31b',
-            'gemma-4-26b-a4b-it': '26b'
-        };
-
-        for (let i = 0; i < 5; i++) {
-            const row = this.apiStatusContentEl.createDiv({ cls: 'dnd-sidebar-key-row' });
-            const apiKey = this.plugin.settings.geminiApiKeys[i];
-            const hasKey = apiKey && apiKey.trim().length > 0;
-
-            row.createDiv({
-                text: `Key ${i + 1}: ${hasKey ? `(${apiKey.substring(0, 4)}...)` : '(Trống)'}`,
-                cls: `dnd-sidebar-key-label ${hasKey ? '' : 'empty'}`
-            });
-
-            const badgeContainer = row.createDiv({ cls: 'dnd-sidebar-badges' });
-
-            for (const model of allModels) {
-                const status = this.plugin.apiModelStatus[i]?.[model] || 'AVAILABLE';
-                const badge = badgeContainer.createSpan({ 
-                    cls: 'dnd-sidebar-badge',
-                    text: shortNames[model] || model
-                });
-
-                if (!hasKey) {
-                    badge.addClass('inactive');
-                } else {
-                    if (status === 'AVAILABLE') {
-                        badge.addClass('available');
-                    } else {
-                        badge.addClass('exhausted');
-                    }
-                }
-            }
-        }
+        // Rules
+        contentEl.createEl('div', { text: 'Quy tắc bổ sung (Rules):', cls: 'dnd-input-label' });
+        const rulesInput = contentEl.createEl('textarea', { cls: 'dnd-textarea-npc' });
+        rulesInput.style.minHeight = '60px';
+        rulesInput.placeholder = 'Ví dụ: 1. Luôn chèn emoji. 2. Không xưng tôi...';
+        rulesInput.value = this.plugin.settings.customRules;
+        rulesInput.addEventListener('change', async () => {
+            this.plugin.settings.customRules = rulesInput.value;
+            await this.plugin.saveSettings();
+        });
     }
 
     async summarizeConversation() {
@@ -698,153 +837,6 @@ export class QuickChatView extends ItemView {
             console.error(err);
             new Notice("Gặp lỗi khi tóm tắt cuộc đối thoại qua Gemini.");
         }
-    }
-}
-
-export class CreateCharacterModal extends Modal {
-    plugin: MyPlugin;
-    name: string = '';
-    type: 'character' | 'npc' = 'npc';
-    onCreated: () => void;
-
-    constructor(app: App, plugin: MyPlugin, onCreated: () => void) {
-        super(app);
-        this.plugin = plugin;
-        this.onCreated = onCreated;
-    }
-
-    onOpen() {
-        const { contentEl } = this;
-        contentEl.empty();
-        contentEl.createEl('h2', { text: 'Tạo Nhân Vật Mới (PC/NPC)', cls: 'dnd-modal-title' });
-
-        new Setting(contentEl)
-            .setName('Tên nhân vật')
-            .setDesc('Nhập tên hiển thị của nhân vật.')
-            .addText(text => text
-                .setPlaceholder('Ví dụ: Saula, Sylvie...')
-                .onChange(value => this.name = value.trim()));
-
-        new Setting(contentEl)
-            .setName('Loại nhân vật')
-            .setDesc('Chọn loại nhân vật chính (PC) hoặc nhân vật phụ (NPC).')
-            .addDropdown(dropdown => dropdown
-                .addOption('npc', 'Nhân vật phụ (NPC)')
-                .addOption('character', 'Nhân vật chính (PC)')
-                .setValue(this.type)
-                .onChange(value => this.type = value as 'character' | 'npc'));
-
-        new Setting(contentEl)
-            .addButton(btn => btn
-                .setButtonText('Tạo Tệp Tin')
-                .setCta()
-                .onClick(async () => {
-                    if (!this.name) {
-                        new Notice("Vui lòng nhập tên nhân vật!");
-                        return;
-                    }
-
-                    const sanitizedName = this.name.replace(/[\\\/:\*\?"<>\|]/g, ''); // Loại bỏ ký tự đặc biệt trong tên file
-                    let folderPath = '';
-                    
-                    // Kiểm tra và chọn thư mục lưu trữ thích hợp
-                    const folders = this.app.vault.getAllLoadedFiles().filter(f => (f as any).children !== undefined);
-                    const hasNpcFolder = folders.some(f => f.path === 'Characters/NPCs');
-                    const hasPcFolder = folders.some(f => f.path === 'Characters/PC');
-                    const hasCharactersFolder = folders.some(f => f.path === 'Characters');
-
-                    if (this.type === 'npc') {
-                        if (hasNpcFolder) folderPath = 'Characters/NPCs/';
-                        else if (hasCharactersFolder) folderPath = 'Characters/';
-                    } else {
-                        if (hasPcFolder) folderPath = 'Characters/PC/';
-                        else if (hasCharactersFolder) folderPath = 'Characters/';
-                    }
-
-                    const filePath = `${folderPath}${sanitizedName}.md`;
-
-                    // Kiểm tra xem file đã tồn tại chưa
-                    if (this.app.vault.getAbstractFileByPath(filePath)) {
-                        new Notice("Nhân vật này đã tồn tại!");
-                        return;
-                    }
-
-                    const tag = this.type === 'character' ? 'dnd-character' : 'dnd-npc';
-                    const defaultYaml = `---
-name: "${this.name}"
-race: "Unknown"
-class: "Unknown"
-level: 1
-background: "Unknown Background"
-alignment: "True Neutral"
-xp: 0
-hp_max: 10
-hp_current: 10
-hp_temp: 0
-ac: 10
-speed: 30
-proficiency_bonus: 2
-str: 10
-dex: 10
-con: 10
-int: 10
-wis: 10
-cha: 10
-tags: ["${tag}"]
-quickchat: false
----
-
-# ${this.name}
-
-> **Unknown** • Unknown • Level 1
-> *Unknown Background — True Neutral*
-
-## Core Stats
-
-| HP | AC | Speed | Initiative | Proficiency Bonus |
-|:---:|:---:|:---:|:---:|:---:|
-| 10 / 10 | 10 | 30 ft | +0 | +2 |
-
-## Ability Scores
-
-|   STR   |   DEX   |   CON   |   INT   |   WIS   |   CHA   |
-| :-----: | :-----: | :-----: | :-----: | :-----: | :-----: |
-| 10 (+0) | 10 (+0) | 10 (+0) | 10 (+0) | 10 (+0) | 10 (+0) |
-
-## Actions & Attacks
-
-| Name | ATK Bonus | Damage | Range | Notes |
-|:---|:---:|:---|:---:|:---|
-| ⚔️ Unarmed Strike | +2 | 1 | 5 ft | Bludgeoning |
-
-## Backstory & Notes
-
-*Add your notes here.*
-`;
-
-                    try {
-                        const newFile = await this.app.vault.create(filePath, defaultYaml);
-                        new Notice(`Đã tạo nhân vật ${this.name} thành công!`);
-                        
-                        // Mở file mới tạo trong Obsidian để người dùng chỉnh sửa
-                        const leaf = this.app.workspace.getLeaf(false);
-                        await leaf.openFile(newFile);
-                        
-                        this.onCreated();
-                        this.close();
-                    } catch (err) {
-                        console.error(err);
-                        new Notice("Gặp lỗi trong quá trình tạo tệp tin nhân vật.");
-                    }
-                }));
-    }
-
-    onOpenStyle() {
-        // No-op
-    }
-
-    onClose() {
-        this.contentEl.empty();
     }
 }
 
