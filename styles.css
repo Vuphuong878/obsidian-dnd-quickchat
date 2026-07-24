@@ -60,39 +60,41 @@
     outline: none;
 }
 
-.dnd-mood-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-    margin-top: 10px;
-    margin-bottom: 20px;
+.dnd-mood-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    margin-top: 8px;
+    margin-bottom: 16px;
 }
 
-.dnd-mood-btn {
+.dnd-mood-chip {
     background: var(--background-primary) !important;
     color: var(--text-muted) !important;
     border: 1px solid var(--background-modifier-border) !important;
-    font-size: 0.85em;
+    font-size: 0.8em;
     font-weight: 500;
-    padding: 8px 4px;
-    border-radius: var(--radius-m);
+    padding: 4px 12px;
+    border-radius: 100px; /* Pill/chip shape */
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 0 1px 2px rgba(0,0,0,0.02);
 }
 
-.dnd-mood-btn:hover {
+.dnd-mood-chip:hover {
     background: var(--background-modifier-hover) !important;
     color: var(--text-normal) !important;
     border-color: var(--text-muted) !important;
+    transform: translateY(-1px);
 }
 
-.dnd-mood-btn.active {
+.dnd-mood-chip.active {
     background: var(--interactive-accent) !important;
     color: var(--text-on-accent) !important;
     border-color: var(--interactive-accent) !important;
     font-weight: 600;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .dnd-chat-box {
@@ -120,7 +122,8 @@
 
 .dnd-msg-wrapper {
     display: flex;
-    align-items: flex-end;
+    align-items: flex-start; /* Align top for clean message flows */
+    opacity: 0; /* Animated entry */
 }
 
 .pc-side {
@@ -133,15 +136,21 @@
     border-radius: 50%;
     background: var(--background-secondary-alt);
     color: var(--text-normal);
-    border: 1px solid var(--background-modifier-border);
+    border: 2px solid var(--background-modifier-border);
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 600;
     font-size: 0.85em;
-    margin: 0 10px;
+    margin: 0 8px;
     box-shadow: 0 2px 6px rgba(0,0,0,0.08);
     overflow: hidden;
+    transition: border-color 0.2s ease;
+    flex-shrink: 0;
+}
+
+.pc-side .dnd-avatar {
+    border-color: var(--interactive-accent);
 }
 
 .dnd-avatar-img {
@@ -151,22 +160,24 @@
 }
 
 .dnd-msg-body {
-    background: var(--background-secondary);
+    background: var(--background-primary);
     border: 1px solid var(--background-modifier-border);
-    padding: 12px 16px;
-    border-radius: 18px;
-    border-bottom-left-radius: 4px;
+    border-left: 3px solid var(--text-muted);
+    padding: 10px 14px;
+    border-radius: 6px;
     max-width: 80%;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    transition: all 0.2s ease;
 }
 
 .pc-side .dnd-msg-body {
-    background: var(--interactive-accent);
-    color: var(--text-on-accent);
-    border-color: transparent;
-    border-radius: 18px;
-    border-bottom-left-radius: 18px;
-    border-bottom-right-radius: 4px;
+    background: var(--background-secondary) !important;
+    color: var(--text-normal) !important;
+    border: 1px solid var(--background-modifier-border) !important;
+    border-right: 3px solid var(--interactive-accent) !important;
+    border-left: 1px solid var(--background-modifier-border) !important;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .dnd-sender-name {
@@ -180,8 +191,8 @@
 }
 
 .pc-side .dnd-sender-name {
-    color: var(--text-on-accent);
-    opacity: 0.85;
+    color: var(--interactive-accent) !important;
+    opacity: 1 !important;
 }
 
 .dnd-text {
@@ -191,7 +202,7 @@
 }
 
 .pc-side .dnd-text {
-    color: var(--text-on-accent);
+    color: var(--text-normal);
 }
 
 .dnd-input-section {
@@ -207,10 +218,13 @@
     border: 1px solid var(--background-modifier-border) !important;
     border-radius: var(--radius-m);
     height: 80px;
+    min-height: 80px;
+    max-height: 80px;
+    resize: none !important; /* Disable resizing per feedback */
     padding: 10px 12px;
     font-size: 0.95em;
-    resize: vertical;
-    transition: all 0.2s ease;
+    overflow-y: auto;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .dnd-textarea-pc:focus,
@@ -227,12 +241,17 @@
 }
 
 .dnd-checkbox-label {
-    font-size: 0.85em;
+    font-size: 0.82em;
     color: var(--text-muted);
     cursor: pointer;
     display: flex;
     align-items: center;
     gap: 6px;
+    transition: color 0.15s ease;
+}
+
+.dnd-checkbox-label:hover {
+    color: var(--text-normal);
 }
 
 .dnd-send-btn {
@@ -244,8 +263,19 @@
     font-weight: 600;
     cursor: pointer;
     font-size: 0.9em;
-    transition: all 0.2s ease;
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.dnd-send-btn:hover {
+    background: var(--interactive-accent-hover) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+}
+
+.dnd-send-btn:active {
+    transform: scale(0.96) translateY(0);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 
 .dnd-send-btn:hover {
@@ -682,4 +712,242 @@
     color: var(--text-muted);
     border-color: var(--background-modifier-border);
     opacity: 0.4;
+}
+
+/* Redesigned Header & Settings Button */
+.dnd-chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--background-modifier-border);
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+}
+
+.dnd-chat-header-title {
+    font-size: 1.1em;
+    font-weight: 600;
+    color: var(--text-normal);
+}
+
+.dnd-settings-btn {
+    background: transparent !important;
+    border: none !important;
+    cursor: pointer;
+    font-size: 1.25em;
+    opacity: 0.7;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    padding: 4px !important;
+    box-shadow: none !important;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.dnd-settings-btn:hover {
+    opacity: 1;
+    transform: rotate(45deg) scale(1.1);
+}
+
+.dnd-settings-btn:active {
+    transform: rotate(45deg) scale(0.95);
+}
+
+/* Redesigned Checkbox Grouping */
+.dnd-checkbox-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.dnd-checkbox-group-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+}
+
+/* Settings Modal Adjustments */
+.dnd-settings-modal {
+    padding: 16px;
+}
+
+/* Animations */
+@keyframes dnd-fade-in-up {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.dnd-msg-animate {
+    animation: dnd-fade-in-up 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Bento-style settings cards */
+.dnd-settings-card {
+    background: var(--background-primary) !important;
+    border: 1px solid var(--background-modifier-border) !important;
+    border-radius: var(--radius-l) !important;
+    padding: 20px !important;
+    margin-bottom: 20px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+}
+
+.dnd-settings-card h3 {
+    margin-top: 0 !important;
+    margin-bottom: 6px !important;
+    font-size: 1.1em !important;
+    font-weight: 600 !important;
+}
+
+.dnd-settings-dynamic-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.dnd-settings-key-input {
+    flex: 1;
+    background: var(--background-primary) !important;
+    color: var(--text-normal) !important;
+    border: 1px solid var(--background-modifier-border) !important;
+    border-radius: var(--radius-m) !important;
+    padding: 6px 12px !important;
+    font-size: 0.9em !important;
+}
+
+.dnd-btn-danger {
+    background: var(--text-error) !important;
+    color: var(--text-on-accent) !important;
+    border: none !important;
+    padding: 6px 14px !important;
+    border-radius: var(--radius-m) !important;
+    cursor: pointer;
+    font-size: 0.85em !important;
+    font-weight: 600 !important;
+    transition: all 0.15s ease !important;
+}
+
+.dnd-btn-danger:hover {
+    background: var(--background-modifier-error-hover) !important;
+    opacity: 0.9;
+}
+
+.dnd-btn-primary {
+    background: var(--interactive-accent) !important;
+    color: var(--text-on-accent) !important;
+    border: none !important;
+    padding: 6px 16px !important;
+    border-radius: var(--radius-m) !important;
+    cursor: pointer;
+    font-size: 0.85em !important;
+    font-weight: 600 !important;
+    transition: all 0.15s ease !important;
+    margin-top: 8px !important;
+}
+
+.dnd-btn-primary:hover {
+    background: var(--interactive-accent-hover) !important;
+}
+
+.dnd-status-card .dnd-status-key-row {
+    background: var(--background-secondary-alt) !important;
+    border: 1px solid var(--background-modifier-border) !important;
+    border-radius: var(--radius-m) !important;
+    padding: 12px !important;
+    margin-bottom: 12px !important;
+}
+
+.dnd-status-card .dnd-status-key-row:last-child {
+    margin-bottom: 0 !important;
+}
+
+/* Mobile & Narrow Sidebar Screen Optimization */
+@media (max-width: 480px) {
+    .dnd-chat-sidebar {
+        padding: 12px;
+    }
+
+    .dnd-title {
+        font-size: 1.1em;
+        margin-bottom: 14px;
+        padding-bottom: 8px;
+    }
+
+    .dnd-selectors-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .dnd-selector-col {
+        width: 100%;
+    }
+
+    .dnd-mood-chips {
+        gap: 4px;
+        margin-top: 6px;
+        margin-bottom: 12px;
+    }
+
+    .dnd-mood-chip {
+        padding: 4px 10px !important;
+        font-size: 0.75em;
+    }
+
+    .dnd-msg-body {
+        max-width: 88%;
+        padding: 8px 12px;
+        font-size: 0.9em;
+    }
+
+    .dnd-action-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    .dnd-action-row button,
+    .dnd-action-row .dnd-manual-btn,
+    .dnd-action-row .dnd-send-btn {
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 10px 14px !important; /* Larger touch targets for mobile */
+        font-size: 0.88em;
+    }
+
+    .dnd-checkbox-group-row {
+        gap: 10px;
+        justify-content: flex-start;
+    }
+
+    .dnd-checkbox-label {
+        font-size: 0.85em;
+        padding: 6px 0; /* Increase touch target area */
+    }
+
+    /* Settings Bento grid on mobile */
+    .dnd-settings-card {
+        padding: 16px !important;
+        margin-bottom: 16px !important;
+    }
+
+    .dnd-settings-dynamic-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .dnd-btn-danger {
+        width: 100% !important;
+        margin-top: 4px !important;
+    }
 }

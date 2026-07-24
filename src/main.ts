@@ -12,7 +12,8 @@ export default class MyPlugin extends Plugin {
 		const badModels = ['gemma-4-31b-it', 'gemma-4-26b-a4b-it'];
 		const allModels = [...goodModels, ...badModels];
 		this.apiModelStatus = {};
-		for (let i = 0; i < 5; i++) {
+		const keyCount = this.settings?.geminiApiKeys?.length || 5;
+		for (let i = 0; i < keyCount; i++) {
 			const statusMap: { [modelName: string]: 'AVAILABLE' | 'EXHAUSTED' } = {};
 			for (const model of allModels) {
 				statusMap[model] = 'AVAILABLE';
@@ -117,11 +118,12 @@ export default class MyPlugin extends Plugin {
 	async loadSettings() {
 		const data = await this.loadData() || {};
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
+		this.resetApiModelStatus();
 
 		// Migration: Move old geminiApiKey to geminiApiKeys[0] if exists
 		if (data.geminiApiKey && typeof data.geminiApiKey === 'string') {
 			if (!this.settings.geminiApiKeys) {
-				this.settings.geminiApiKeys = ['', '', '', '', ''];
+				this.settings.geminiApiKeys = [''];
 			}
 			if (this.settings.geminiApiKeys[0] === '') {
 				this.settings.geminiApiKeys[0] = data.geminiApiKey;

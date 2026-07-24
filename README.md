@@ -1,92 +1,65 @@
-# Obsidian Sample Plugin
+# D&D AI Quick Chat Roleplay (Obsidian Community Plugin)
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+[English](#english) | [Tiếng Việt](#tiếng-việt)
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+---
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
+## English
 
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open modal (simple)" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and outputs a Notice on click.
-- Registers a global interval which logs 'setInterval' to the console.
+A smart Obsidian plugin designed for D&D/TTRPG players and DMs to quickly generate character dialogue, actions, and inner thoughts using Gemini AI models. By tapping into your local vault's character sheets, NPC notes, and world lore, this plugin acts as a co-DM to draft immersive, contextual, and realistic roleplay responses.
 
-## First time developing plugins?
+### Key Features
+- **Dynamic Context Extraction**: Automatically formats selected PC/NPC sheets and pulls related lore notes (using `quickchat: true` or Obsidian `[[WikiLinks]]`) as AI context.
+- **Storyteller Suite Integration**: Detects character files using `entityType: character`, `type: character`, or notes inside the `/Characters/` folder. Non-selected characters marked with `quickchat: true` are sent to the AI as supplementary NPCs.
+- **Granular Controls**: Select mood chips (Neutral, Happy, Alert, etc.), enable **Proactive Mode** (letting the character take actions), or toggle **No Censor** (mature content).
+- **Format Filtering**: Choose to output only Speech, Actions, or Thoughts. The AI dynamically structures responses accordingly.
+- **Bilingual Interface**: Seamlessly switch between Vietnamese and English for both the plugin UI and the generated AI responses.
+- **DM Check Requests**: Automatically requests appropriate D&D 5e skill checks (e.g. `> Requesting a Perception check to examine the room.`).
+- **Bento Grid Settings Tab**: Sleek, modern configuration cards featuring a dynamic multi-key manager, active model quota verification, and history size limits.
+- **Mobile Responsive Design**: Clean full-width layouts and stacked controls optimized for smartphone touchpoints and narrow sidebar panes.
 
-Quick starting guide for new plugin devs:
+### Installation
+1. Search for **D&D AI Quick Chat Roleplay** in Obsidian's Community Plugins directory.
+2. Install and enable the plugin.
+3. Open the plugin settings and add at least one Gemini API Key.
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `src/main.ts` to `main.js`.
-- Make changes to `src/main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+### Usage
+- Open the Quick Chat sidebar.
+- Select your active **PC** and target **NPC** from the dropdown selectors.
+- Set the current **Mood** and optionally type a brief suggestion or action hook.
+- Tick your desired settings (e.g. Proactive, No Censor, Request DM Check) and format filters (Dialogue, Actions, Thoughts).
+- Press **Suggest action** to stream roleplay prompts from Gemini, or type an NPC line and press **Send NPC action** to continue the conversation.
 
-## Releasing new releases
+---
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+## Tiếng Việt
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+Một plugin Obsidian thông minh được thiết kế cho người chơi và DM D&D/TTRPG để nhanh chóng tạo lời thoại, hành động và suy nghĩ nội tâm của nhân vật bằng mô hình AI Gemini. Bằng cách khai thác thông tin từ hồ sơ nhân vật, ghi chú NPC và bối cảnh thế giới trong Vault của bạn, plugin hoạt động như một Co-DM hỗ trợ bạn nhập vai tự nhiên nhất.
 
-## Adding your plugin to the community plugin list
+### Tính năng chính
+- **Chắt lọc Ngữ cảnh Thông minh**: Tự động định dạng hồ sơ PC/NPC được chọn và quét các ghi chú bối cảnh liên quan (thông qua nhãn `quickchat: true` hoặc liên kết `[[WikiLinks]]`).
+- **Tích hợp Storyteller Suite**: Tự động nhận diện nhân vật qua `entityType: character`, `type: character` hoặc thư mục `/Characters/`. Các nhân vật phụ được gắn `quickchat: true` sẽ gửi sang AI dưới dạng NPC phụ trợ.
+- **Điều khiển Chi tiết**: Chọn nhanh tâm trạng (Bình thường, Vui vẻ, Cảnh giác...), bật chế độ **Chủ động** (tự tạo hành động dẫn dắt), hoặc bật chế độ **No Censor** (không kiểm duyệt nội dung 18+).
+- **Bộ lọc Định dạng**: Tùy chọn chỉ tạo Lời thoại, Hành động hoặc Suy nghĩ. AI sẽ tự động phân dòng định dạng chính xác.
+- **Hỗ trợ Song ngữ**: Chuyển đổi ngôn ngữ Tiếng Việt và Tiếng Anh linh hoạt cho cả giao diện plugin lẫn ngôn ngữ phản hồi của AI.
+- **Xin check DM**: Chủ động đề xuất xúc sắc kiểm tra kỹ năng D&D 5e tương ứng với hành động (ví dụ: `> Xin một cái check Perception để quan sát.`).
+- **Cài đặt dạng Bento Grid**: Giao diện cài đặt dạng thẻ bento hiện đại, hỗ trợ quản lý danh sách nhiều API Key, theo dõi trạng thái hạn mức model khả dụng, và cài đặt giới hạn lịch sử hội thoại.
+- **Tối ưu hóa Giao diện Di động**: Thiết kế tự động căn lề và xếp chồng dọc, tối ưu hóa kích thước nút bấm trên màn hình điện thoại di động và thanh bên sidebar hẹp.
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+### Cài đặt
+1. Tìm kiếm **D&D AI Quick Chat Roleplay** trong mục Community Plugins của Obsidian.
+2. Cài đặt và bật plugin.
+3. Vào phần cài đặt plugin và thêm ít nhất một khóa API Gemini.
 
-## How to use
+### Cách sử dụng
+- Mở sidebar **Đối thoại nhanh D&D**.
+- Lựa chọn **PC** và **NPC** tương tác từ các dropdown.
+- Chọn **Tâm trạng** của nhân vật và nhập gợi ý hành động mong muốn (tùy chọn).
+- Tích chọn các chế độ (Chủ động, No Censor, Xin check DM) và thành phần muốn tạo (Lời thoại, Hành động, Suy nghĩ).
+- Nhấp **Gợi ý hành động** để nhận văn bản nhập vai được stream trực tiếp từ Gemini, hoặc nhập lời nói của NPC và nhấp **Gửi hành động NPCs** để tiếp tục trò chuyện.
 
-- Clone this repo.
-- Make sure your NodeJS is at least v18 (`node --version`).
-- `npm i` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
+---
 
-## Manually installing the plugin
+## License
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
-
-## Improve code quality with eslint
-
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code.
-- This project already has eslint preconfigured, you can invoke a check by running`npm run lint`
-- Together with a custom eslint [plugin](https://github.com/obsidianmd/eslint-plugin) for Obsidan specific code guidelines.
-- A GitHub action is preconfigured to automatically lint every commit on all branches.
-
-## Funding URL
-
-You can include funding URLs where people who use your plugin can financially support it.
-
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
-
-```json
-{
-	"fundingUrl": "https://buymeacoffee.com"
-}
-```
-
-If you have multiple URLs, you can also do:
-
-```json
-{
-	"fundingUrl": {
-		"Buy Me a Coffee": "https://buymeacoffee.com",
-		"GitHub Sponsor": "https://github.com/sponsors",
-		"Patreon": "https://www.patreon.com/"
-	}
-}
-```
-
-## API Documentation
-
-See https://docs.obsidian.md
+This project is licensed under the [MIT License](LICENSE).

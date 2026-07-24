@@ -1,5 +1,6 @@
 import { App, PluginSettingTab, Setting, Notice, Menu } from 'obsidian';
 import MyPlugin from './main';
+import { t, LanguageType, DEFAULT_PROMPT_MAP } from './utils/locale';
 
 export interface ChatMessage {
 	sender: 'player' | 'npc';
@@ -31,10 +32,13 @@ export interface MyPluginSettings {
 	generateAction: boolean;
 	generateThought: boolean;
 	isRequestCheckEnabled: boolean;
+	maxHistoryLength: number;
+	maxHistorySent: number;
+	language: LanguageType;
 }
 
 export const DEFAULT_SETTINGS: MyPluginSettings = {
-	geminiApiKeys: ['', '', '', '', ''],
+	geminiApiKeys: [''],
 	defaultPcNote: 'Hero_Sylvie',
 	chatHistory: [],
 	lastSelectedNpcs: [],
@@ -47,7 +51,10 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
 	generateDialogue: true,
 	generateAction: true,
 	generateThought: true,
-	isRequestCheckEnabled: false
+	isRequestCheckEnabled: false,
+	maxHistoryLength: 30,
+	maxHistorySent: 30,
+	language: 'vi'
 };
 
 export class SampleSettingTab extends PluginSettingTab {
@@ -63,37 +70,130 @@ export class SampleSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		this.plugin.activeSettingTab = this;
+		const lang = this.plugin.settings.language || 'vi';
 
-		containerEl.createEl('h2', { text: 'Cài đặt Đối thoại Nhập vai D&D AI' });
+		containerEl.createEl('h2', { text: t('settings_title', lang) });
 
-		containerEl.createEl('p', { 
-			text: 'Hệ thống luân phiên (Fallback): Các khóa API sẽ tự động đổi từ model cao (3.5 -> 3 -> 2.5) và nhảy sang khóa tiếp theo nếu hết Quota. Khi tất cả các khóa đều cạn kiệt model cao, hệ thống sẽ sử dụng các model dự phòng Gemma.',
+		// Phân khu 0: General Settings (Cấu hình ngôn ngữ)
+		const generalSection = containerEl.createDiv({ cls: 'dnd-settings-card' });
+		generalSection.createEl('h3', { text: t('language_label', lang) });
+		
+		new Setting(generalSection)
+			.setName(t('language_label', lang))
+			.setDesc(t('language_desc', lang))
+			.addDropdown(dropdown => dropdown
+				.addOptions({
+					vi: 'Tiếng Việt',
+					en: 'English'
+				})
+				.setValue(lang)
+				.onChange(async (val) => {
+					const oldLang = this.plugin.settings.language || 'vi';
+					const newLang = val as LanguageType;
+					this.plugin.settings.language = newLang;
+
+					// Auto-translate Custom Prompt if unmodified
+					const oldDefaultPrompt = DEFAULT_PROMPT_MAP[oldLang];
+					if (this.plugin.settings.customPrompt === oldDefaultPrompt) {
+						this.plugin.settings.customPrompt = DEFAULT_PROMPT_MAP[newLang];
+					}
+
+					await this.plugin.saveSettings();
+					this.display();
+
+					// Refresh active view
+					const sidebarView = this.app.workspace.getLeavesOfType('dnd-quickchat-view')[0]?.view;
+					if (sidebarView && 'onOpen' in sidebarView) {
+						(sidebarView as any).onOpen();
+					}
+				})
+			);
+
+		// Phân khu 1: API Keys (Danh sách động)
+		const apiSection = containerEl.createDiv({ cls: 'dnd-settings-card' });
+		apiSection.createEl('h3', { text: t('settings_api_title', lang) });
+		apiSection.createEl('p', { 
+			text: t('settings_api_desc', lang),
 			cls: 'setting-item-description'
 		});
 
-		for (let i = 0; i < 5; i++) {
-			new Setting(containerEl)
-				.setName(`Gemini API Key ${i + 1}`)
-				.setDesc(`Khóa API số ${i + 1}.`)
-				.addText(text => text
-					.setPlaceholder('Nhập API Key ở đây...')
-					.setValue(this.plugin.settings.geminiApiKeys[i] || '')
-					.onChange(async (value) => {
-						this.plugin.settings.geminiApiKeys[i] = value;
-						// Reset status cho key này khi cập nhật
-						const goodModels = ['gemini-3.5-flash', 'gemini-3-flash', 'gemini-2.5-flash'];
-						const badModels = ['gemma-4-31b-it', 'gemma-4-26b-a4b-it'];
-						for (const m of [...goodModels, ...badModels]) {
-							this.plugin.setApiModelStatus(i, m, 'AVAILABLE');
-						}
-						await this.plugin.saveSettings();
-						this.display(); // Cập nhật lại giao diện ngay
-					}));
-		}
+		const keysContainer = apiSection.createDiv({ cls: 'dnd-settings-keys-list' });
+		
+		this.plugin.settings.geminiApiKeys.forEach((key, index) => {
+			const keyRow = keysContainer.createDiv({ cls: 'dnd-settings-dynamic-row' });
+			
+			const inputEl = keyRow.createEl('input', {
+				type: 'text',
+				placeholder: `API Key ${index + 1}...`,
+				value: key,
+				cls: 'dnd-settings-key-input'
+			});
+			
+			inputEl.addEventListener('change', async () => {
+				this.plugin.settings.geminiApiKeys[index] = inputEl.value;
+				
+				// Reset status
+				const goodModels = ['gemini-3.5-flash', 'gemini-3-flash', 'gemini-2.5-flash'];
+				const badModels = ['gemma-4-31b-it', 'gemma-4-26b-a4b-it'];
+				for (const m of [...goodModels, ...badModels]) {
+					this.plugin.setApiModelStatus(index, m, 'AVAILABLE');
+				}
+				await this.plugin.saveSettings();
+			});
 
-		new Setting(containerEl)
-			.setName('Note Nhân Vật PC Mặc định')
-			.setDesc('Tên Note chứa mô tả nhân vật của bạn (không ghi phần mở rộng .md).')
+			const delBtn = keyRow.createEl('button', { text: t('settings_delete', lang), cls: 'dnd-btn-danger' });
+			delBtn.addEventListener('click', async () => {
+				this.plugin.settings.geminiApiKeys.splice(index, 1);
+				if (this.plugin.settings.geminiApiKeys.length === 0) {
+					this.plugin.settings.geminiApiKeys.push('');
+				}
+				await this.plugin.saveSettings();
+				this.display();
+			});
+		});
+
+		const addKeyBtn = apiSection.createEl('button', { text: t('settings_add_key', lang), cls: 'dnd-btn-primary' });
+		addKeyBtn.addEventListener('click', async () => {
+			this.plugin.settings.geminiApiKeys.push('');
+			await this.plugin.saveSettings();
+			this.display();
+		});
+
+		// Phân khu 2: Chat & History Limits
+		const limitsSection = containerEl.createDiv({ cls: 'dnd-settings-card' });
+		limitsSection.createEl('h3', { text: t('settings_limits_title', lang) });
+		limitsSection.createEl('p', {
+			text: t('settings_limits_desc', lang),
+			cls: 'setting-item-description'
+		});
+
+		new Setting(limitsSection)
+			.setName(t('settings_limit_display', lang))
+			.setDesc(t('settings_limit_display_desc', lang))
+			.addSlider(slider => slider
+				.setLimits(10, 100, 5)
+				.setValue(this.plugin.settings.maxHistoryLength)
+				.setDynamicTooltip()
+				.onChange(async (val) => {
+					this.plugin.settings.maxHistoryLength = val;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(limitsSection)
+			.setName(t('settings_limit_sent', lang))
+			.setDesc(t('settings_limit_sent_desc', lang))
+			.addSlider(slider => slider
+				.setLimits(5, 100, 5)
+				.setValue(this.plugin.settings.maxHistorySent)
+				.setDynamicTooltip()
+				.onChange(async (val) => {
+					this.plugin.settings.maxHistorySent = val;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(limitsSection)
+			.setName(t('settings_default_pc', lang))
+			.setDesc(t('settings_default_pc_desc', lang))
 			.addText(text => text
 				.setPlaceholder('Ví dụ: Hero_Sylvie')
 				.setValue(this.plugin.settings.defaultPcNote)
@@ -102,11 +202,13 @@ export class SampleSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				}));
 
-		containerEl.createEl('h3', { text: 'Cài đặt Proxy Tùy chỉnh (Custom Reverse Proxy)' });
-
-		new Setting(containerEl)
-			.setName('Bật Custom Proxy Toàn Cục')
-			.setDesc('Khi bật, mọi yêu cầu AI sẽ được chuyển hướng qua các Proxy cấu hình bên dưới thay vì dùng API Key mặc định.')
+		// Phân khu 3: Custom Proxy
+		const proxyCard = containerEl.createDiv({ cls: 'dnd-settings-card' });
+		proxyCard.createEl('h3', { text: t('settings_proxy_title', lang) });
+		
+		new Setting(proxyCard)
+			.setName(t('settings_proxy_enable', lang))
+			.setDesc(t('settings_proxy_enable_desc', lang))
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.isProxyEnabled)
 				.onChange(async (value) => {
@@ -116,7 +218,7 @@ export class SampleSettingTab extends PluginSettingTab {
 				}));
 
 		if (this.plugin.settings.isProxyEnabled) {
-			const proxyContainer = containerEl.createDiv({ cls: 'dnd-proxy-container' });
+			const proxyContainer = proxyCard.createDiv({ cls: 'dnd-proxy-container' });
 			proxyContainer.style.border = '1px solid var(--background-modifier-border)';
 			proxyContainer.style.padding = '10px';
 			proxyContainer.style.borderRadius = '5px';
@@ -139,7 +241,7 @@ export class SampleSettingTab extends PluginSettingTab {
 						.setValue(proxy.key)
 						.onChange(async (val) => { proxy.key = val; await this.plugin.saveSettings(); }))
 					.addButton(btn => btn
-						.setButtonText('Xóa')
+						.setButtonText(t('settings_delete', lang))
 						.setWarning()
 						.onClick(async () => {
 							this.plugin.settings.proxies.splice(index, 1);
@@ -214,23 +316,23 @@ export class SampleSettingTab extends PluginSettingTab {
 					}));
 		}
 
-		// Bảng hiển thị Live Status Dashboard
-		const statusContainer = containerEl.createDiv({ cls: 'dnd-status-container' });
+		// Phân khu 4: Live Status Quota Dashboard (Grid Cards)
+		const statusContainer = containerEl.createDiv({ cls: 'dnd-settings-card dnd-status-card' });
 		const statusHeader = statusContainer.createDiv({ cls: 'dnd-status-title' });
-		statusHeader.createEl('span', { text: 'Bảng trạng thái Model & Quota API (Live)' });
+		statusHeader.createEl('span', { text: t('settings_status_title', lang) });
 		
-		const resetBtn = statusHeader.createEl('button', { text: 'Đặt lại Trạng thái', cls: 'dnd-status-reset-btn' });
+		const resetBtn = statusHeader.createEl('button', { text: t('settings_status_reset', lang), cls: 'dnd-status-reset-btn' });
 		resetBtn.addEventListener('click', () => {
 			this.plugin.resetApiModelStatus();
 			this.display();
-			new Notice("Đã đặt lại trạng thái các model thành Sẵn sàng.");
+			new Notice(t('settings_status_reset_notice', lang));
 		});
 
 		const goodModels = ['gemini-3.5-flash', 'gemini-3-flash', 'gemini-2.5-flash'];
 		const badModels = ['gemma-4-31b-it', 'gemma-4-26b-a4b-it'];
 		const allModels = [...goodModels, ...badModels];
 
-		for (let i = 0; i < 5; i++) {
+		for (let i = 0; i < this.plugin.settings.geminiApiKeys.length; i++) {
 			const keyRow = statusContainer.createDiv({ cls: 'dnd-status-key-row' });
 			const apiKeyVal = this.plugin.settings.geminiApiKeys[i];
 			const hasKey = apiKeyVal && apiKeyVal.trim().length > 0;
