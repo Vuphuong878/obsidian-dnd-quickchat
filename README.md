@@ -1,4 +1,4 @@
-# D&D AI Quick Chat Roleplay (Obsidian Community Plugin)
+# Dnd AI Quick Chat Roleplay (Obsidian Community Plugin)
 
 [English](#english) | [Tiếng Việt](#tiếng-việt)
 
@@ -19,7 +19,7 @@ A smart Obsidian plugin designed for D&D/TTRPG players and DMs to quickly genera
 - **Mobile Responsive Design**: Clean full-width layouts and stacked controls optimized for smartphone touchpoints and narrow sidebar panes.
 
 ### Installation
-1. Search for **D&D AI Quick Chat Roleplay** in Obsidian's Community Plugins directory.
+1. Search for **Dnd AI Quick Chat Roleplay** in Obsidian's Community Plugins directory.
 2. Install and enable the plugin.
 3. Open the plugin settings and add at least one Gemini API Key.
 
@@ -47,7 +47,7 @@ Một plugin Obsidian thông minh được thiết kế cho người chơi và D
 - **Tối ưu hóa Giao diện Di động**: Thiết kế tự động căn lề và xếp chồng dọc, tối ưu hóa kích thước nút bấm trên màn hình điện thoại di động và thanh bên sidebar hẹp.
 
 ### Cài đặt
-1. Tìm kiếm **D&D AI Quick Chat Roleplay** trong mục Community Plugins của Obsidian.
+1. Tìm kiếm **Dnd AI Quick Chat Roleplay** trong mục Community Plugins của Obsidian.
 2. Cài đặt và bật plugin.
 3. Vào phần cài đặt plugin và thêm ít nhất một khóa API Gemini.
 
