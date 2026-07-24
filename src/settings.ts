@@ -1,5 +1,5 @@
 import { App, PluginSettingTab, Setting, Notice, Menu } from 'obsidian';
-import MyPlugin from './main';
+import DndQuickChatPlugin from './main';
 import { t, LanguageType, DEFAULT_PROMPT_MAP } from './utils/locale';
 
 export interface ChatMessage {
@@ -17,7 +17,7 @@ export interface ProxyConfig {
 	customModelName?: string;
 }
 
-export interface MyPluginSettings {
+export interface DndQuickChatSettings {
 	geminiApiKeys: string[];
 	defaultPcNote: string; // Tên file chứa nhân vật PC mặc định
 	chatHistory: ChatMessage[];
@@ -37,7 +37,7 @@ export interface MyPluginSettings {
 	language: LanguageType;
 }
 
-export const DEFAULT_SETTINGS: MyPluginSettings = {
+export const DEFAULT_SETTINGS: DndQuickChatSettings = {
 	geminiApiKeys: [''],
 	defaultPcNote: 'Hero_Sylvie',
 	chatHistory: [],
@@ -57,10 +57,10 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
 	language: 'vi'
 };
 
-export class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+export class DndQuickChatSettingTab extends PluginSettingTab {
+	plugin: DndQuickChatPlugin;
 
-	constructor(app: App, plugin: MyPlugin) {
+	constructor(app: App, plugin: DndQuickChatPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -72,11 +72,11 @@ export class SampleSettingTab extends PluginSettingTab {
 		this.plugin.activeSettingTab = this;
 		const lang = this.plugin.settings.language || 'vi';
 
-		containerEl.createEl('h2', { text: t('settings_title', lang) });
+		new Setting(containerEl).setName(t('settings_title', lang)).setHeading();
 
 		// Phân khu 0: General Settings (Cấu hình ngôn ngữ)
 		const generalSection = containerEl.createDiv({ cls: 'dnd-settings-card' });
-		generalSection.createEl('h3', { text: t('language_label', lang) });
+		new Setting(generalSection).setName(t('language_label', lang)).setHeading();
 		
 		new Setting(generalSection)
 			.setName(t('language_label', lang))
@@ -111,7 +111,7 @@ export class SampleSettingTab extends PluginSettingTab {
 
 		// Phân khu 1: API Keys (Danh sách động)
 		const apiSection = containerEl.createDiv({ cls: 'dnd-settings-card' });
-		apiSection.createEl('h3', { text: t('settings_api_title', lang) });
+		new Setting(apiSection).setName(t('settings_api_title', lang)).setHeading();
 		apiSection.createEl('p', { 
 			text: t('settings_api_desc', lang),
 			cls: 'setting-item-description'
@@ -161,7 +161,7 @@ export class SampleSettingTab extends PluginSettingTab {
 
 		// Phân khu 2: Chat & History Limits
 		const limitsSection = containerEl.createDiv({ cls: 'dnd-settings-card' });
-		limitsSection.createEl('h3', { text: t('settings_limits_title', lang) });
+		new Setting(limitsSection).setName(t('settings_limits_title', lang)).setHeading();
 		limitsSection.createEl('p', {
 			text: t('settings_limits_desc', lang),
 			cls: 'setting-item-description'
@@ -204,7 +204,7 @@ export class SampleSettingTab extends PluginSettingTab {
 
 		// Phân khu 3: Custom Proxy
 		const proxyCard = containerEl.createDiv({ cls: 'dnd-settings-card' });
-		proxyCard.createEl('h3', { text: t('settings_proxy_title', lang) });
+		new Setting(proxyCard).setName(t('settings_proxy_title', lang)).setHeading();
 		
 		new Setting(proxyCard)
 			.setName(t('settings_proxy_enable', lang))
@@ -318,9 +318,12 @@ export class SampleSettingTab extends PluginSettingTab {
 
 		// Phân khu 4: Live Status Quota Dashboard (Grid Cards)
 		const statusContainer = containerEl.createDiv({ cls: 'dnd-settings-card dnd-status-card' });
-		const statusHeader = statusContainer.createDiv({ cls: 'dnd-status-title' });
-		statusHeader.createEl('span', { text: t('settings_status_title', lang) });
 		
+		const statusHeaderSetting = new Setting(statusContainer)
+			.setName(t('settings_status_title', lang))
+			.setHeading();
+			
+		const statusHeader = statusHeaderSetting.settingEl;
 		const resetBtn = statusHeader.createEl('button', { text: t('settings_status_reset', lang), cls: 'dnd-status-reset-btn' });
 		resetBtn.addEventListener('click', () => {
 			this.plugin.resetApiModelStatus();

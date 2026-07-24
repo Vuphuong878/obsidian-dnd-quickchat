@@ -1,5 +1,4 @@
-import { requestUrl } from 'obsidian';
-import MyPlugin from './main';
+import DndQuickChatPlugin from './main';
 import { ProxyConfig } from './settings';
 
 export interface RoleplayContext {
@@ -22,7 +21,7 @@ export interface RoleplayContext {
 }
 
 export async function generateAiRoleplay(
-    plugin: MyPlugin,
+    plugin: DndQuickChatPlugin,
     context: RoleplayContext,
     proxyConfig?: ProxyConfig | null,
     onUpdate?: (chunk: string) => void
@@ -209,7 +208,7 @@ ${isEn ? '**CONTEXT CONSTRAINT:**' : '**RÀO CẢN BỐI CẢNH:**'}
 }
 
 export async function generateChatSummary(
-    plugin: MyPlugin,
+    plugin: DndQuickChatPlugin,
     chatHistory: { sender: 'player' | 'npc', text: string, npcName?: string }[],
     proxyConfig?: ProxyConfig | null,
     onUpdate?: (chunk: string) => void
@@ -240,7 +239,7 @@ Hãy viết một đoạn tóm tắt ngắn (Distilled Memory, khoảng 2-4 câu
     }
 }
 
-async function fetchWithFallback(plugin: MyPlugin, bodyContents: any, onUpdate?: (chunk: string) => void): Promise<string> {
+async function fetchWithFallback(plugin: DndQuickChatPlugin, bodyContents: any, onUpdate?: (chunk: string) => void): Promise<string> {
     const apiKeys = plugin.settings.geminiApiKeys;
     const validKeyIndices = apiKeys
         .map((key, index) => ({ key, index }))

@@ -3,8 +3,8 @@
 	"name": "Dnd AI Quick Chat Roleplay",
 	"version": "1.0.0",
 	"minAppVersion": "1.4.0",
-	"description": "Nhập vai vào nhân vật RPG bằng AI thông qua gợi ý, sử dụng các note thế giới, nhân vật và NPC làm kho trí tuệ.",
-	"author": "RPG Architect & Bạn",
+	"description": "AI roleplay companion to quickly generate character dialogue, actions, and thoughts based on your vault sheets.",
+	"author": "RPG Architect",
 	"authorUrl": "https://ai.studio/build",
 	"isDesktopOnly": false
 }
