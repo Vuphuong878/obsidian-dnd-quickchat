@@ -1,13 +1,13 @@
 // src/chat-view.ts
 import { ItemView, WorkspaceLeaf, TFile, Notice, Modal, Setting, App, getAllTags } from 'obsidian';
 import { generateAiRoleplay, RoleplayContext, generateChatSummary } from './ai-service';
-import DndQuickChatPlugin from './main';
+import MyPlugin from './main';
 import { t, PC_MOODS_MAP } from './utils/locale';
 
 export const VIEW_TYPE_QUICK_CHAT = 'dnd-quick-chat-view';
 
 export class QuickChatView extends ItemView {
-    plugin: DndQuickChatPlugin;
+    plugin: MyPlugin;
     chatHistory: { sender: 'player' | 'npc', text: string, npcName?: string }[] = [];
     activeNpc: string = '';
     selectedMood: string = '';
@@ -15,7 +15,7 @@ export class QuickChatView extends ItemView {
     npcSelectEl!: HTMLSelectElement;
     refreshTimer: any = null;
 
-    constructor(leaf: WorkspaceLeaf, plugin: DndQuickChatPlugin) {
+    constructor(leaf: WorkspaceLeaf, plugin: MyPlugin) {
         super(leaf);
         this.plugin = plugin;
     }
@@ -908,13 +908,13 @@ export class QuickChatView extends ItemView {
 }
 
 export class ManualMessageModal extends Modal {
-    plugin: DndQuickChatPlugin;
+    plugin: MyPlugin;
     view: QuickChatView;
     msgType: 'npc' | 'player' = 'npc';
     speakerName: string = '';
     content: string = '';
 
-    constructor(app: App, plugin: DndQuickChatPlugin, view: QuickChatView) {
+    constructor(app: App, plugin: MyPlugin, view: QuickChatView) {
         super(app);
         this.plugin = plugin;
         this.view = view;
@@ -926,7 +926,7 @@ export class ManualMessageModal extends Modal {
         contentEl.addClass('dnd-manual-modal');
 
         // Tiêu đề
-        contentEl.createEl('div', { text: 'Thêm Tin Nhắn Thủ Công', cls: 'dnd-modal-title' });
+        contentEl.createEl('h2', { text: 'Thêm Tin Nhắn Thủ Công', cls: 'dnd-modal-title' });
 
         // Mô tả
         contentEl.createEl('p', {
@@ -1066,9 +1066,9 @@ export class ManualMessageModal extends Modal {
 }
 
 export class PromptConfigModal extends Modal {
-    plugin: DndQuickChatPlugin;
+    plugin: MyPlugin;
 
-    constructor(app: App, plugin: DndQuickChatPlugin) {
+    constructor(app: App, plugin: MyPlugin) {
         super(app);
         this.plugin = plugin;
     }
@@ -1080,7 +1080,7 @@ export class PromptConfigModal extends Modal {
 
         const lang = this.plugin.settings.language || 'vi';
 
-        contentEl.createEl('div', { text: t('settings_modal_title', lang), cls: 'dnd-modal-title' });
+        contentEl.createEl('h2', { text: t('settings_modal_title', lang), cls: 'dnd-modal-title' });
 
         // Prompt
         contentEl.createEl('div', { text: t('settings_modal_prompt', lang), cls: 'dnd-modal-label' });

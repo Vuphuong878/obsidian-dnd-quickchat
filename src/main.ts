@@ -1,9 +1,9 @@
 import { Plugin, WorkspaceLeaf, Notice } from 'obsidian';
 import { QuickChatView, VIEW_TYPE_QUICK_CHAT } from './chat-view';
-import { DndQuickChatSettings, DEFAULT_SETTINGS, DndQuickChatSettingTab } from './settings';
+import { MyPluginSettings, DEFAULT_SETTINGS, SampleSettingTab } from './settings';
 
-export default class DndQuickChatPlugin extends Plugin {
-	settings!: DndQuickChatSettings;
+export default class MyPlugin extends Plugin {
+	settings!: MyPluginSettings;
 	apiModelStatus: { [keyIndex: number]: { [modelName: string]: 'AVAILABLE' | 'EXHAUSTED' } } = {};
 	activeSettingTab: any = null;
 
@@ -85,7 +85,7 @@ export default class DndQuickChatPlugin extends Plugin {
 		});
 
 		// Nạp bảng Cài đặt
-		this.addSettingTab(new DndQuickChatSettingTab(this.app, this));
+		this.addSettingTab(new SampleSettingTab(this.app, this));
 	}
 
 	onunload() {
