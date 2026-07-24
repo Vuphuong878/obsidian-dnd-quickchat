@@ -814,19 +814,26 @@ export class QuickChatView extends ItemView {
 
         if (file) {
             const cache = this.app.metadataCache.getFileCache(file);
-            let avatarPath = cache?.frontmatter?.avatar;
-            if (avatarPath) {
-                // Loại bỏ ngoặc vuông WikiLink nếu có: [[Avatar.png]] -> Avatar.png
-                avatarPath = avatarPath.replace(/^\[\[(.*?)\]\]$/, '$1');
-                
-                // Giải quyết tệp tin hình ảnh trong vault
-                const imgFile = this.app.metadataCache.getFirstLinkpathDest(avatarPath, file.path);
-                if (imgFile) {
-                    return this.app.vault.getResourcePath(imgFile);
-                }
-                // Nếu đường dẫn là URL
-                if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
-                    return avatarPath;
+            const frontmatter = cache?.frontmatter;
+            if (frontmatter) {
+                let avatarPath = frontmatter.profileImagePath || 
+                                 frontmatter.avatar || 
+                                 frontmatter.image || 
+                                 frontmatter.portrait || 
+                                 frontmatter.cover;
+                if (avatarPath) {
+                    // Loại bỏ ngoặc vuông WikiLink nếu có: [[Avatar.png]] -> Avatar.png
+                    avatarPath = avatarPath.replace(/^\[\[(.*?)\]\]$/, '$1');
+                    
+                    // Giải quyết tệp tin hình ảnh trong vault
+                    const imgFile = this.app.metadataCache.getFirstLinkpathDest(avatarPath, file.path);
+                    if (imgFile) {
+                        return this.app.vault.getResourcePath(imgFile);
+                    }
+                    // Nếu đường dẫn là URL
+                    if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
+                        return avatarPath;
+                    }
                 }
             }
         }

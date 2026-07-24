@@ -174,15 +174,23 @@ ${isEn ? '**CONTEXT CONSTRAINT:**' : '**RÀO CẢN BỐI CẢNH:**'}
 
     if (context.isRequestCheckEnabled) {
         if (isEn) {
-            systemInstruction += `\n\n**REQUEST DM CHECK**: At the very end of your response (after all other parts), actively request a D&D 5e Skill Check from the DM in English that best fits the action just performed. This line must stand alone and be formatted as a markdown blockquote.
-            Mandatory format example:
-            > Requesting a Perception check to look around.
-            (Or other attributes/skills like Stealth, Athletics, Insight, Investigation, Arcana,... depending on the action).`;
+            systemInstruction += `\n\n**REQUEST DM CHECK & STAT OPTIMIZATION**:
+- Analyze your character's stats and proficiencies in the "YOUR CHARACTER INFO" section.
+- Prioritize using skills or stats that your character is proficient in (e.g. SkillProficiencies, dndSkillProficiencies) or has high attributes in (e.g. DEX, CHA, WIS) to achieve the best possible outcome.
+- Describe the character's actions in a way that actively leverages and highlights these strengths (e.g. if proficient in Stealth/Dexterity, describe a silent, graceful approach; if high in Persuasion/Charisma, describe eloquent and reassuring speech).
+- At the very end of your response (after all other parts), actively request a D&D 5e Skill Check from the DM in English that best fits the action just performed, matching the utilized strength. This line must stand alone and be formatted as a markdown blockquote.
+Mandatory format example:
+> Requesting a Perception check to look around.
+(Or other attributes/skills like Stealth, Athletics, Insight, Investigation, Arcana, Persuasion... depending on the action).`;
         } else {
-            systemInstruction += `\n\n**YÊU CẦU XIN CHECK DM**: Ở dòng cuối cùng của phản hồi (sau tất cả các phần khác), hãy chủ động xin DM một Skill Check D&D 5e bằng tiếng Anh gốc phù hợp nhất với hành vi vừa thực hiện. Dòng này phải đứng riêng biệt và có định dạng trích dẫn markdown.
-            Ví dụ định dạng bắt buộc:
-            > Xin một cái check Perception để quan sát.
-            (Hoặc Roll/Check các thuộc tính khác như Stealth, Athletics, Insight, Investigation, Arcana,... tùy theo hành động).`;
+            systemInstruction += `\n\n**YÊU CẦU XIN CHECK DM & TỐI ƯU CHỈ SỐ**:
+- Hãy phân tích các thuộc tính chỉ số (stats) và kỹ năng thành thạo (proficiencies, dndSkillProficiencies...) trong phần "THÔNG TIN NHÂN VẬT CỦA BẠN".
+- Ưu tiên sử dụng các kỹ năng nhân vật thành thạo (proficiencies) hoặc chỉ số cao nhất của nhân vật (ví dụ: dndDex/Dexterity, dndCha/Charisma, dndWis/Wisdom) khi thực hiện hành động.
+- Hãy mô tả hành động của nhân vật theo cách làm nổi bật và tận dụng các thế mạnh này để đạt hiệu quả cao nhất (ví dụ: nếu giỏi Stealth, hãy mô tả cách di chuyển rón rén không tiếng động; nếu giỏi Persuasion, hãy mô tả lời lẽ thuyết phục, biểu cảm đáng tin cậy).
+- Ở dòng cuối cùng của phản hồi (sau tất cả các phần khác), hãy chủ động xin DM một Skill Check D&D 5e bằng tiếng Anh gốc phù hợp nhất với hành vi vừa thực hiện và thuộc tính đã tối ưu ở trên. Dòng này phải đứng riêng biệt và có định dạng trích dẫn markdown.
+Ví dụ định dạng bắt buộc:
+> Xin một cái check Perception để quan sát.
+(Hoặc các thuộc tính/kỹ năng khác như Stealth, Athletics, Insight, Investigation, Arcana, Persuasion... tùy theo hành động).`;
         }
     }
 
