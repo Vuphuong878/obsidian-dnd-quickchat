@@ -14,6 +14,10 @@ export interface RoleplayContext {
     pcSuggestion: string;   // Gợi ý hành động PC
     isProactiveMode: boolean; // Chế độ chủ động
     isNsfwMode: boolean;    // Chế độ 18+
+    generateDialogue: boolean;
+    generateAction: boolean;
+    generateThought: boolean;
+    isRequestCheckEnabled: boolean;
 }
 
 export async function generateAiRoleplay(
@@ -27,6 +31,30 @@ export async function generateAiRoleplay(
         const name = msg.sender === 'player' ? context.pcName : (msg.npcName || 'NPC');
         return `${name}: ${msg.text}`;
     }).join('\n');
+
+    let formatRequirements = `**YÊU CẦU ĐỊNH DẠNG (BẮT BUỘC TUÂN THỦ):**\n`;
+    const formatRules: string[] = [];
+
+    if (context.generateDialogue) {
+        formatRules.push(`1. **Lời nói:** Để trong dấu ngoặc kép "...".`);
+    } else {
+        formatRules.push(`1. **CẤM tạo lời thoại:** Tuyệt đối KHÔNG tạo bất kỳ lời thoại, câu nói trực tiếp, hay đoạn hội thoại nào của nhân vật ${context.pcName} (Không dùng dấu ngoặc kép "...").`);
+    }
+
+    if (context.generateAction) {
+        formatRules.push(`2. **Hành động:** Tả hành động bằng ngôi thứ ba, dùng tên nhân vật ${context.pcName}.`);
+    } else {
+        formatRules.push(`2. **CẤM tả hành động:** Tuyệt đối KHÔNG mô tả bất kỳ hành động, cử chỉ, hay di chuyển vật lý nào của nhân vật ${context.pcName}.`);
+    }
+
+    if (context.generateThought) {
+        formatRules.push(`3. **Suy nghĩ:** Viết suy nghĩ bằng ngôi thứ nhất, in nghiêng *...*.`);
+    } else {
+        formatRules.push(`3. **CẤM tả suy nghĩ:** Tuyệt đối KHÔNG mô tả suy nghĩ thầm kín hay suy tư nội tâm của nhân vật ${context.pcName} (Không dùng chữ in nghiêng *...*).`);
+    }
+
+    formatRules.push(`4. **TÁCH DÒNG:** Mỗi thành phần được tạo ra phải nằm trên một dòng riêng biệt.`);
+    formatRequirements += formatRules.join('\n');
 
     let systemInstruction = `${plugin.settings.customPrompt}
 
@@ -56,8 +84,7 @@ Bạn đang **chủ động** thực hiện một hành động hoặc nói mộ
 
 **BỘ LỌC VĂN PHONG (ANTI-CHEESINESS):**
 1.  **THỰC TẾ:** Nếu chỉ thị là một hành động đơn giản (VD: "Mua táo", "Hỏi đường", "Tấn công"), hãy thực hiện nó một cách trực diện, nhanh gọn. Đừng thêm thắt các mô tả nội tâm phức tạp hay cử chỉ thừa thãi "làm màu".
-2.  **SUY NGHĨ CÓ ĐIỀU KIỆN:** Chỉ viết dòng "Suy nghĩ" nếu hành động đó đi ngược lại với cảm xúc thật, hoặc cần tính toán kỹ lưỡng. Nếu không, hãy bỏ qua.
-
+${context.generateThought ? `2.  **SUY NGHĨ CÓ ĐIỀU KIỆN:** Chỉ viết dòng "Suy nghĩ" nếu hành động đó đi ngược lại với cảm xúc thật, hoặc cần tính toán kỹ lưỡng. Nếu không, hãy bỏ qua.\n` : ''}
 **QUY TẮC VĂN PHONG "PHI AI":**
 - **Show, Don't Tell (Diễn đạt qua hành động):** Đừng viết "Anh ấy cảm thấy buồn". Hãy viết "Anh ấy nhìn chằm chằm vào ly cà phê đã nguội ngắt, ngón tay gõ nhịp vô định lên mặt bàn".
 - **Ngôn ngữ đời thường:** Sử dụng các từ ngữ gần gũi, đôi khi là khẩu ngữ hoặc câu tỉnh lược. Tránh các từ ngữ quá trau chuốt, hào nhoáng hoặc các cấu trúc câu phức tạp kiểu lý thuyết.
@@ -66,11 +93,7 @@ Bạn đang **chủ động** thực hiện một hành động hoặc nói mộ
 - **Tránh cấu trúc lặp lại:** Tuyệt đối không bắt đầu mọi câu thoại bằng cùng một kiểu mô tả hành động. Hãy thay đổi độ dài ngắn của câu để tạo cảm giác tự nhiên.
 - **Cấm tuyệt đối các cụm từ kiểu AI:** Không sử dụng các từ như "Với tư cách là...", "Tôi hiểu cảm xúc của bạn...", hoặc các câu tổng kết bài học đạo đức cuối đoạn chat.
 
-**YÊU CẦU ĐỊNH DẠNG (BẮT BUỘC TUÂN THỦ):**
-1.  **Lời nói (Bắt buộc nếu là hội thoại):** Để trong dấu ngoặc kép "...".
-2.  **Hành động (Bắt buộc):** Ngôi thứ ba, dùng tên nhân vật ${context.pcName}.
-3.  **Suy nghĩ (Tùy chọn):** Ngôi thứ nhất, in nghiêng *...*. (Chỉ dùng khi cần thiết).
-4.  **TÁCH DÒNG:** Mỗi thành phần một dòng.
+${formatRequirements}
 
 **RÀO CẢN BỐI CẢNH:**
 -   **KHÔNG TỰ Ý TẢ CẢNH:** Không được tự bịa ra kết quả của hành động (VD: không viết "Tôi tìm thấy kho báu" khi chưa có thông báo từ DM). Chỉ mô tả nỗ lực hành động.
@@ -85,17 +108,24 @@ Bạn đang **chủ động** thực hiện một hành động hoặc nói mộ
     }
 
     if (context.isProactiveMode) {
-        systemInstruction += `\n\n**CHẾ ĐỘ CHỦ ĐỘNG**: Hãy tự tạo chuyển động hoặc quan sát môi trường để dẫn dắt câu chuyện tiến lên, không thụ động đợi câu hỏi. Không dùng thuật ngữ game (Insight, Roll...)`;
+        systemInstruction += `\n\n**CHẾ ĐỘ CHỦ ĐỘNG**: Hãy tự tạo chuyển động hoặc quan sát môi trường để dẫn dắt câu chuyện tiến lên, không thụ động đợi câu hỏi. Không dùng thuật ngữ game (Insight, Roll...) trong phần mô tả hành động, lời thoại hoặc suy nghĩ chính.`;
     }
 
     if (context.isNsfwMode) {
         systemInstruction += `\n\n**KHÔNG NÓI GIẢM NÓI TRÁNH:** Tuyệt đối cấm sử dụng từ ngữ ẩn dụ, nói giảm nói tránh hay bất kỳ hình thức nào nhằm làm nhẹ đi tính chất dâm đãng của hành động cùng lời nói của PC.
         
         **SỬ DỤNG NGÔN NGỮ TỰ NHIÊN:** Bạn được toàn quyền sử dụng dùng ngôn ngữ **trần trụi, và trực diện nhất** để mô tả các bộ phận sinh dục và các hành vi tình dục của PC hướng đến NPC. Ngôn ngữ này phải được dùng một cách tự nhiên phù hợp với bối cảnh.
-
+ 
         **TẬP TRUNG VÀO CẢM GIÁC THỂ XÁC:** Đừng chỉ mô tả hành động. Hãy đi sâu vào chi tiết cụ thể của **cảm giác thể xác** mà PC lúc đó cảm nhận được: sự trơn trượt của dịch nhờn, độ nóng của da thịt chạm vào nhau, mùi hương của cơ thể, những âm thanh bản thân PC hay NPC phát ra (tiếng rên rỉ, tiếng da thịt va chạm, tiếng mút mát chùn chụt...), và những suy nghĩ nhục dục đen tối nhất trong tâm trí nhân vật.
-
+ 
         **CHI TIẾT HÀNH VI:** Mô tả chi tiết kỹ thuật của các hành vi. Ví dụ khi hôn, hãy tả rõ lưỡi di chuyển ra sao, có mút lưỡi hay trao đổi nước bọt không. Khi giao hợp, hãy tả rõ sự ra vào, độ sâu, cảm giác bên trong.`;
+    }
+
+    if (context.isRequestCheckEnabled) {
+        systemInstruction += `\n\n**YÊU CẦU XIN CHECK DM**: Ở dòng cuối cùng của phản hồi (sau tất cả các phần khác), hãy chủ động xin DM một Skill Check D&D 5e bằng tiếng Anh gốc phù hợp nhất với hành vi vừa thực hiện. Dòng này phải đứng riêng biệt và có định dạng trích dẫn markdown.
+        Ví dụ định dạng bắt buộc:
+        > Xin một cái check Perception để quan sát.
+        (Hoặc Roll/Check các thuộc tính khác như Stealth, Athletics, Insight, Investigation, Arcana,... tùy theo hành động).`;
     }
 
     systemInstruction += `\n\nHãy thực hiện hành động của ${context.pcName} ngay bây giờ.`;
@@ -218,7 +248,7 @@ async function tryCallApiStream(apiKey: string, modelName: string, bodyContents:
 
 async function fetchWithProxyStreaming(proxy: ProxyConfig, promptText: string, onUpdate?: (chunk: string) => void): Promise<string> {
     let baseUrl = proxy.url.replace(/\/+$/, '');
-    
+
     // Auto-detect format
     let format = proxy.format;
     if (format === 'auto') {
@@ -275,7 +305,7 @@ async function fetchWithProxyStreaming(proxy: ProxyConfig, promptText: string, o
 
 async function readSSEStream(response: Response, format: 'openai' | 'gemini', onUpdate?: (chunk: string) => void): Promise<string> {
     if (!response.body) throw new Error("No response body from stream");
-    
+
     const reader = response.body.getReader();
     const decoder = new TextDecoder("utf-8");
     let fullText = "";
@@ -284,10 +314,10 @@ async function readSSEStream(response: Response, format: 'openai' | 'gemini', on
     while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        
+
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
-        buffer = lines.pop() || ""; 
+        buffer = lines.pop() || "";
 
         for (const line of lines) {
             if (line.trim() === '') continue;

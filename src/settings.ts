@@ -27,6 +27,10 @@ export interface MyPluginSettings {
 	customPrompt: string;
 	customStyle: string;
 	customRules: string;
+	generateDialogue: boolean;
+	generateAction: boolean;
+	generateThought: boolean;
+	isRequestCheckEnabled: boolean;
 }
 
 export const DEFAULT_SETTINGS: MyPluginSettings = {
@@ -39,7 +43,11 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
 	proxies: [],
 	customPrompt: 'Bạn đang nhập vai là **Nhân vật chính (PC)** trong thế giới D&D.',
 	customStyle: '',
-	customRules: ''
+	customRules: '',
+	generateDialogue: true,
+	generateAction: true,
+	generateThought: true,
+	isRequestCheckEnabled: false
 };
 
 export class SampleSettingTab extends PluginSettingTab {

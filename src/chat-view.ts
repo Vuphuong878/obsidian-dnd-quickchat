@@ -137,6 +137,30 @@ export class QuickChatView extends ItemView {
         const nCheck = nsfwCheckbox.createEl('input', { type: 'checkbox' });
         nsfwCheckbox.createEl('span', { text: ' 18+' });
 
+        // Checkbox Xin check DM
+        const checkDmCheckbox = checkboxContainer.createEl('label', { cls: 'dnd-checkbox-label' });
+        const cCheck = checkDmCheckbox.createEl('input', { type: 'checkbox' });
+        cCheck.checked = this.plugin.settings.isRequestCheckEnabled;
+        checkDmCheckbox.createEl('span', { text: ' Xin check DM' });
+
+        // Checkbox Lời thoại
+        const dialogueCheckbox = checkboxContainer.createEl('label', { cls: 'dnd-checkbox-label' });
+        const dCheck = dialogueCheckbox.createEl('input', { type: 'checkbox' });
+        dCheck.checked = this.plugin.settings.generateDialogue;
+        dialogueCheckbox.createEl('span', { text: ' Lời thoại' });
+
+        // Checkbox Hành động
+        const actionCheckbox = checkboxContainer.createEl('label', { cls: 'dnd-checkbox-label' });
+        const aCheck = actionCheckbox.createEl('input', { type: 'checkbox' });
+        aCheck.checked = this.plugin.settings.generateAction;
+        actionCheckbox.createEl('span', { text: ' Hành động' });
+
+        // Checkbox Suy nghĩ
+        const thoughtCheckbox = checkboxContainer.createEl('label', { cls: 'dnd-checkbox-label' });
+        const tCheck = thoughtCheckbox.createEl('input', { type: 'checkbox' });
+        tCheck.checked = this.plugin.settings.generateThought;
+        thoughtCheckbox.createEl('span', { text: ' Suy nghĩ' });
+
         // Nhóm các nút PC ở bên phải
         const pcButtonsContainer = pcActionRow.createDiv();
         pcButtonsContainer.style.display = 'flex';
@@ -165,6 +189,45 @@ export class QuickChatView extends ItemView {
 
         // Nút Gợi ý hành động
         const suggestActionBtn = pcButtonsContainer.createEl('button', { text: 'Gợi ý hành động', cls: 'dnd-send-btn' });
+
+        // Hàm kiểm tra/khóa nút dựa trên tích chọn
+        const validateCheckboxes = () => {
+            const anyChecked = dCheck.checked || aCheck.checked || tCheck.checked;
+            if (!anyChecked) {
+                suggestActionBtn.disabled = true;
+                suggestActionBtn.addClass('disabled');
+                suggestActionBtn.textContent = 'CHỌN ÍT NHẤT 1 PHẦN CẦN TẠO';
+            } else {
+                suggestActionBtn.disabled = false;
+                suggestActionBtn.removeClass('disabled');
+                suggestActionBtn.textContent = 'Gợi ý hành động';
+            }
+        };
+
+        // Đăng ký sự kiện thay đổi cho các checkbox để lưu vào Settings
+        dCheck.addEventListener('change', async () => {
+            this.plugin.settings.generateDialogue = dCheck.checked;
+            await this.plugin.saveSettings();
+            validateCheckboxes();
+        });
+        aCheck.addEventListener('change', async () => {
+            this.plugin.settings.generateAction = aCheck.checked;
+            await this.plugin.saveSettings();
+            validateCheckboxes();
+        });
+        tCheck.addEventListener('change', async () => {
+            this.plugin.settings.generateThought = tCheck.checked;
+            await this.plugin.saveSettings();
+            validateCheckboxes();
+        });
+        cCheck.addEventListener('change', async () => {
+            this.plugin.settings.isRequestCheckEnabled = cCheck.checked;
+            await this.plugin.saveSettings();
+        });
+
+        // Validate trạng thái nút ngay khi mở giao diện
+        validateCheckboxes();
+
         suggestActionBtn.addEventListener('click', async () => {
             const npcText = npcSpeakInput.value.trim();
             const pcSuggest = suggestionInput.value.trim();
@@ -219,7 +282,11 @@ export class QuickChatView extends ItemView {
                         pcMood: this.selectedMood,
                         pcSuggestion: pcSuggest,
                         isProactiveMode: pCheck.checked,
-                        isNsfwMode: nCheck.checked
+                        isNsfwMode: nCheck.checked,
+                        generateDialogue: dCheck.checked,
+                        generateAction: aCheck.checked,
+                        generateThought: tCheck.checked,
+                        isRequestCheckEnabled: cCheck.checked
                     },
                     proxyConfig,
                     (chunk: string) => {
@@ -246,8 +313,8 @@ export class QuickChatView extends ItemView {
             } catch (err) {
                 new Notice("Gặp lỗi khi tạo lời thoại từ Gemini. Vui lòng kiểm tra lại cấu hình API key trong phần Settings.");
             } finally {
-                suggestActionBtn.disabled = false;
-                suggestActionBtn.textContent = 'Gợi ý hành động';
+                // Khôi phục trạng thái nút (kiểm tra lại các ô tích)
+                validateCheckboxes();
             }
         });
 
